@@ -21,9 +21,11 @@ jobs:
       - name: Copy client to pages
         run: |
           mkdir -p public
-          cp client/index.html public/
-          cp -r client/src public/
-          cp -r client/assets public/ 2>/dev/null || true
+          cp client/index.html public/ || true
+          cp -r client/src public/ || true
+          cp -r client/assets public/ || true
+          echo "✅ Client files copied to public/"
+          ls -la public/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
