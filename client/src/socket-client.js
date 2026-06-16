@@ -3,7 +3,12 @@ let currentPlayerId = null;
 let currentRoom = null;
 
 function initSocket(token) {
-  socket = io('http://localhost:3001', {
+  // In development, connect to localhost:3001. In production, connect to the same host.
+  const serverUrl = window.location.hostname === 'localhost'
+    ? 'http://localhost:3001'
+    : window.location.origin;
+
+  socket = io(serverUrl, {
     auth: { token },
     reconnection: true,
     reconnectionDelay: 1000,
@@ -66,7 +71,11 @@ function login() {
   const username = document.getElementById('username').value;
   const password = document.getElementById('password').value;
 
-  fetch('http://localhost:3001/auth/login', {
+  const apiUrl = window.location.hostname === 'localhost'
+    ? 'http://localhost:3001'
+    : window.location.origin;
+
+  fetch(apiUrl + '/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
@@ -88,7 +97,11 @@ function register() {
   const username = document.getElementById('username').value;
   const password = document.getElementById('password').value;
 
-  fetch('http://localhost:3001/auth/register', {
+  const apiUrl = window.location.hostname === 'localhost'
+    ? 'http://localhost:3001'
+    : window.location.origin;
+
+  fetch(apiUrl + '/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
