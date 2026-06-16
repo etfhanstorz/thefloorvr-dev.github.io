@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Floor VR</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+    canvas { display: block; }
+    #ui {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: white;
+      background: rgba(0,0,0,0.7);
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 14px;
+      z-index: 10;
+    }
+    #players { margin-top: 10px; }
+    .player-item { margin: 5px 0; }
+    input { padding: 5px; margin: 5px 0; }
+    button { padding: 8px 12px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+    #loginScreen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); padding: 30px; border-radius: 10px; text-align: center; color: white; z-index: 100; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="loginScreen">
+    <h1>The Floor VR</h1>
+    <input type="text" id="username" placeholder="Username" />
+    <br />
+    <input type="password" id="password" placeholder="Password" />
+    <br />
+    <button onclick="login()">Login</button>
+    <button onclick="register()">Register</button>
+  </div>
+
+  <div id="ui" class="hidden">
+    <div>Connected: <span id="status">No</span></div>
+    <div>Room: <span id="roomId">-</span></div>
+    <div>Your ID: <span id="playerId">-</span></div>
+    <div id="players">
+      <strong>Players in room:</strong>
+      <div id="playerList"></div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+  <script src="src/socket-client.js"></script>
+  <script src="src/floor.js"></script>
+  <script src="src/player-avatar.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>

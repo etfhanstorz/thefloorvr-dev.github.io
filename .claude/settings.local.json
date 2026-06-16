@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell *)",
+      "Bash(mkdir -p client/src client/assets server/db server/routes server/socket bot)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(npm config *)",
+      "Bash(npm start *)",
+      "Bash(node -c index.js)",
+      "Bash(node index.js)",
+      "Bash(curl -X POST http://localhost:3000/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"test1\",\"password\":\"test123\"}')",
+      "Bash(pkill -f \"node\")",
+      "Bash(cd \"/c/Users/ethan/OneDrive/Desktop/The Floor VR/server\")",
+      "Bash(sleep 3)",
+      "Bash(ps aux *)",
+      "Bash(curl -s -X POST http://localhost:3001/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"alice\",\"password\":\"test123\"}')",
+      "Bash(curl -s -X POST http://localhost:3001/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"bob\",\"password\":\"test123\"}')",
+      "Bash(curl -s http://localhost:3001/)",
+      "Bash(curl -s -I https://etfhanstorz.github.io/thefloorvr-dev.github.io/)"
+    ]
+  }
+}
