@@ -28,6 +28,7 @@ function createBlackjackBoard(scene) {
   dealerDisplay.position.z = -0.25;
   group.add(dealerDisplay);
 
+  group.userData.game = 'blackjack';
   gameBoards.blackjack = group;
   scene.add(group);
   return group;
@@ -68,6 +69,7 @@ function createPlinkoBoard(scene) {
     group.add(bucket);
   }
 
+  group.userData.game = 'plinko';
   gameBoards.plinko = group;
   scene.add(group);
   return group;
@@ -97,6 +99,7 @@ function createWheelBoard(scene) {
     group.add(segment);
   }
 
+  group.userData.game = 'wheel';
   gameBoards.wheel = group;
   scene.add(group);
   return group;
@@ -128,6 +131,7 @@ function createShopBoard(scene) {
   text.position.z = 0.06;
   group.add(text);
 
+  group.userData.game = 'shop';
   gameBoards.shop = group;
   scene.add(group);
   return group;

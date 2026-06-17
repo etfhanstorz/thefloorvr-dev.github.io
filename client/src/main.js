@@ -101,13 +101,13 @@ function init() {
         vrButton.innerHTML = 'Exit VR';
         xrRefSpace = await session.requestReferenceSpace('local-floor');
 
-        initVRHands(session, null);
         createBlackjackBoard(scene);
         createPlinkoBoard(scene);
         createWheelBoard(scene);
         createShopBoard(scene);
-        controllerLeft = createControllerModel(scene, 'left');
-        controllerRight = createControllerModel(scene, 'right');
+
+        // Tracked controllers + laser pointers (aim trigger at a stand to open it)
+        setupVRControllers();
 
         session.addEventListener('end', () => { isVR = false; vrButton.innerHTML = 'Enter VR'; });
         renderer.xr.setSession(session);
@@ -182,8 +182,7 @@ function animate(time, xrFrame) {
   lastFrameTime = time;
 
   if (isVR && xrFrame) {
-    updateControllers(xrFrame, xrRefSpace);
-    vrLocomotion(dt);
+    vrLocomotion(dt);          // three.js auto-updates the built-in controllers
   } else if (!isVR) {
     desktopMovement(dt);
   }
@@ -281,6 +280,63 @@ function vrLocomotion(dt) {
   } else {
     snapTurnArmed = true;
   }
+}
+
+// ---------- VR controllers (tracked, with laser + point-to-open) ----------
+
+let vrRaycaster = null, vrTmpMatrix = null;
+
+function setupVRControllers() {
+  vrRaycaster = new THREE.Raycaster();
+  vrTmpMatrix = new THREE.Matrix4();
+
+  for (let i = 0; i < 2; i++) {
+    const ctrl = renderer.xr.getController(i);
+    ctrl.addEventListener('selectstart', onVRSelect);
+    ctrl.add(makeLaser());
+    playerRig.add(ctrl);
+
+    const grip = renderer.xr.getControllerGrip(i);
+    grip.add(makeControllerMesh());
+    playerRig.add(grip);
+  }
+}
+
+function makeLaser() {
+  const geo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -5),
+  ]);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x33ccff }));
+  line.name = 'laser';
+  return line;
+}
+
+function makeControllerMesh() {
+  const mat = new THREE.MeshStandardMaterial({ color: 0x222233, roughness: 0.5, metalness: 0.3 });
+  return new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.12), mat);
+}
+
+function onVRSelect(e) {
+  if (typeof gameBoards === 'undefined') return;
+  const controller = e.target;
+  vrTmpMatrix.identity().extractRotation(controller.matrixWorld);
+  vrRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  vrRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(vrTmpMatrix);
+
+  const targets = Object.values(gameBoards);
+  const hits = vrRaycaster.intersectObjects(targets, true);
+  if (!hits.length) return;
+
+  let o = hits[0].object;
+  while (o && !(o.userData && o.userData.game)) o = o.parent;
+  if (o && o.userData.game) openGame(o.userData.game);
+}
+
+function openGame(name) {
+  if (name === 'blackjack') showBlackjack();
+  else if (name === 'plinko') showPlinko();
+  else if (name === 'wheel') showWheel();
+  else if (name === 'shop') showShop();
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
