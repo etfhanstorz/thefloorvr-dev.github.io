@@ -50,6 +50,15 @@ window.onShopItems = (data) => {
 
   let html = `<h3>🛍️ Shop &nbsp; <span style="color:#ffd700; font-size:14px;">P$ ${bal}</span></h3>`;
 
+  // current look preview (so you can confirm changes in first-person)
+  const cos = window.currentPlayer ? window.currentPlayer.cosmetics : { bodyColor: null, hat: null };
+  const swatch = cos.bodyColor != null ? '#' + cos.bodyColor.toString(16).padStart(6, '0') : '#00ff00 (default)';
+  const swatchBox = cos.bodyColor != null ? '#' + cos.bodyColor.toString(16).padStart(6, '0') : '#00ff00';
+  html += `<div style="margin:6px 0; padding:6px; background:#222; border-radius:4px; font-size:12px;">
+    Your look: <span style="display:inline-block; width:14px; height:14px; background:${swatchBox}; border:1px solid #fff; vertical-align:middle; border-radius:3px;"></span>
+    ${swatch} · hat: ${cos.hat || 'none'}
+  </div>`;
+
   if (window._shopStatus) {
     html += `<div style="margin:6px 0; padding:6px; background:#222; border-radius:4px; color:#9f9;">${window._shopStatus}</div>`;
   }
