@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>The Floor VR</title>
   <style>
-    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+    body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; }
     canvas { display: block; }
     #ui {
       position: absolute;
@@ -20,21 +20,76 @@
     }
     #players { margin-top: 10px; }
     .player-item { margin: 5px 0; }
-    input { padding: 5px; margin: 5px 0; }
-    button { padding: 8px 12px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
-    #loginScreen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); padding: 30px; border-radius: 10px; text-align: center; color: white; z-index: 100; }
+    #ui input { padding: 5px; margin: 5px 0; }
+    #ui button { padding: 8px 12px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
     .hidden { display: none !important; }
+
+    /* ---- login / sign-up screen ---- */
+    #loginScreen {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 50% 30%, #1c1340 0%, #0a0614 70%);
+      overflow: hidden;
+    }
+    #loginScreen::before { /* slow rotating glow behind the card */
+      content: ''; position: absolute; width: 900px; height: 900px;
+      background: conic-gradient(from 0deg, #ff2266, #ffb347, #33ccff, #ff33aa, #ff2266);
+      filter: blur(120px); opacity: 0.22; border-radius: 50%;
+      animation: spin 24s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .login-card {
+      position: relative; z-index: 1;
+      width: 340px; padding: 36px 30px 28px;
+      background: rgba(12, 8, 26, 0.82);
+      border: 1px solid rgba(255, 210, 74, 0.35);
+      border-radius: 18px;
+      box-shadow: 0 0 40px rgba(0,0,0,0.6), inset 0 0 30px rgba(255,210,74,0.05);
+      backdrop-filter: blur(6px);
+      text-align: center; color: #fff;
+    }
+    .login-logo {
+      font-size: 42px; font-weight: 800; letter-spacing: 3px; color: #ffd24a;
+      text-shadow: 0 0 14px rgba(255,210,74,0.8), 0 0 30px rgba(255,160,40,0.4);
+      animation: glow 2.6s ease-in-out infinite alternate;
+    }
+    @keyframes glow {
+      from { text-shadow: 0 0 12px rgba(255,210,74,0.6), 0 0 24px rgba(255,160,40,0.3); }
+      to   { text-shadow: 0 0 20px rgba(255,210,74,1.0), 0 0 44px rgba(255,160,40,0.6); }
+    }
+    .login-sub { font-size: 13px; letter-spacing: 6px; color: #9fb4ff; margin: 4px 0 26px; }
+    .login-card input {
+      display: block; width: 100%; box-sizing: border-box;
+      padding: 13px 14px; margin: 9px 0; font-size: 15px;
+      background: rgba(255,255,255,0.06); color: #fff;
+      border: 1px solid rgba(255,255,255,0.15); border-radius: 10px;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+    }
+    .login-card input::placeholder { color: rgba(255,255,255,0.4); }
+    .login-card input:focus { border-color: #ffd24a; box-shadow: 0 0 0 3px rgba(255,210,74,0.18); }
+    .btn-primary, .btn-secondary {
+      width: 100%; padding: 13px; margin-top: 12px; font-size: 15px; font-weight: 700;
+      border: none; border-radius: 10px; cursor: pointer; transition: transform .08s, filter .2s;
+    }
+    .btn-primary { background: linear-gradient(135deg, #ffd24a, #ff9d2f); color: #1a1006; box-shadow: 0 6px 18px rgba(255,160,40,0.35); }
+    .btn-secondary { background: transparent; color: #cdbff5; border: 1px solid rgba(157,180,255,0.4); }
+    .btn-primary:hover, .btn-secondary:hover { filter: brightness(1.08); }
+    .btn-primary:active, .btn-secondary:active { transform: translateY(1px); }
+    .login-hint { margin-top: 18px; font-size: 11px; letter-spacing: 1px; color: rgba(255,255,255,0.4); }
   </style>
 </head>
 <body>
   <div id="loginScreen">
-    <h1>The Floor VR</h1>
-    <input type="text" id="username" placeholder="Username" />
-    <br />
-    <input type="password" id="password" placeholder="Password" />
-    <br />
-    <button onclick="doLogin()">Login</button>
-    <button onclick="doRegister()">Register</button>
+    <div class="login-card">
+      <div class="login-logo">THE FLOOR</div>
+      <div class="login-sub">V R&nbsp;&nbsp;C A S I N O</div>
+      <input type="text" id="username" placeholder="Username" autocomplete="off" />
+      <input type="password" id="password" placeholder="Password" />
+      <button class="btn-primary" onclick="doLogin()">Enter the Floor</button>
+      <button class="btn-secondary" onclick="doRegister()">Create Account</button>
+      <div class="login-hint">FREE-PLAY CHIPS · NO REAL MONEY</div>
+    </div>
   </div>
 
   <script>
