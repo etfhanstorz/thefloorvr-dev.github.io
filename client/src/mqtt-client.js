@@ -110,7 +110,7 @@ function handleAdminEvent(event) {
 
     case 'tokens':
       if (target === 'everyone' || target === window.currentPlayer.username) {
-        window.currentPlayer.balance += amount;
+        window.currentPlayer.balance = Math.max(0, window.currentPlayer.balance + amount);
         savePlayerData();
         console.log(`🎁 Admin gave ${amount} tokens! Balance: ${window.currentPlayer.balance}`);
       }
@@ -140,9 +140,9 @@ function handleAdminEvent(event) {
       } else if (action === 'balance' && username === window.currentPlayer.username) {
         const newBalance = parseInt(value);
         if (!isNaN(newBalance)) {
-          window.currentPlayer.balance = newBalance;
+          window.currentPlayer.balance = Math.max(0, newBalance);
           savePlayerData();
-          console.log(`💰 Balance set to ${newBalance}`);
+          console.log(`💰 Balance set to ${window.currentPlayer.balance}`);
         }
       }
       break;

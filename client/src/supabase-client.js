@@ -103,16 +103,23 @@ async function loadPlayerFromSupabase(username) {
     data = r.data;
   }
 
+  // jsonb may come back as an object or (if double-encoded) a string — handle both
+  const jparse = (v, d) => {
+    if (v == null) return d;
+    if (typeof v === 'string') { try { return JSON.parse(v); } catch (e) { return d; } }
+    return v;
+  };
+
   window.currentPlayer = {
     username: data.username,
-    balance: data.balance,
+    balance: Math.max(0, data.balance || 0),
     c_balance: data.c_balance || 0,
     time_played: data.time_played || 0,
     is_admin: !!data.is_admin,
     pc_able: !!data.pc_able,
-    cosmetics: data.cosmetics || { bodyColor: null, hat: null, owned: [] },
-    upgrades: data.upgrades || { luck: 0, payout: 0, crit: 0 },
-    stats: data.stats || { gamesPlayed: 0, totalWins: 0, totalLosses: 0 },
+    cosmetics: jparse(data.cosmetics, { bodyColor: null, hat: null, owned: [] }),
+    upgrades: jparse(data.upgrades, { luck: 0, payout: 0, crit: 0 }),
+    stats: jparse(data.stats, { gamesPlayed: 0, totalWins: 0, totalLosses: 0 }),
     inventory: [],
   };
   window.sbActive = true;
