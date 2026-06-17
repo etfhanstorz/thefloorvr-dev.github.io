@@ -5,6 +5,7 @@
 
 const MQTT_URL = 'wss://broker.hivemq.com:8884/mqtt';
 const MQTT_TOPIC = 'thefloorvr/admin-events';
+const MQTT_WIPE = 'thefloorvr/wipe-window'; // retained: an active account-reset window
 
 let mqttClient = null;
 let deviceId = null;
@@ -41,16 +42,17 @@ async function initMqtt() {
 
     mqttClient.on('connect', () => {
       console.log('✓ Connected to MQTT broker');
-      mqttClient.subscribe(MQTT_TOPIC, (err) => {
+      mqttClient.subscribe([MQTT_TOPIC, MQTT_WIPE], (err) => {
         if (err) console.error('MQTT subscribe error:', err);
-        else console.log(`✓ Subscribed to ${MQTT_TOPIC}`);
+        else console.log(`✓ Subscribed to ${MQTT_TOPIC} + wipe window`);
       });
     });
 
     mqttClient.on('message', (topic, message) => {
       try {
-        const event = JSON.parse(message.toString());
-        handleAdminEvent(event);
+        const data = JSON.parse(message.toString());
+        if (topic === MQTT_WIPE) handleWipeWindow(data);
+        else handleAdminEvent(data);
       } catch (e) {
         console.error('Failed to parse MQTT message:', e);
       }
@@ -66,6 +68,24 @@ async function initMqtt() {
   } catch (err) {
     console.error('Failed to init MQTT:', err);
   }
+}
+
+// Account-reset window. {id, from, to, immediate}. A player who is logged in
+// during [from, to] (or any time, if immediate) gets wiped once and a +1000 P$
+// goodwill bonus. Retained, so people who log in mid-window are caught too.
+function handleWipeWindow(win) {
+  if (!win || !win.id) return;
+  if (localStorage.getItem('floorVrWipeId') === String(win.id)) return; // already applied
+
+  const now = Date.now();
+  const inWindow = win.immediate || ((!win.from || now >= win.from) && (!win.to || now <= win.to));
+  if (!inWindow) return;
+  if (!window.currentPlayer || !window.currentPlayer.username) return; // not logged in yet
+
+  localStorage.setItem('floorVrWipeId', String(win.id)); // mark first so we never loop
+  if (window.wipeLocalAccount) window.wipeLocalAccount(1000);
+  if (window.playSoundIfNotMuted) playSoundIfNotMuted('notification');
+  if (window.showToast) window.showToast('🗑️ Account reset by admin — here\'s 1000 P$ for the trouble!', '#ffd24a');
 }
 
 function handleAdminEvent(event) {

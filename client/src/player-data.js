@@ -73,6 +73,17 @@ function getInventory() {
   return window.currentPlayer.inventory || [];
 }
 
+// Admin reset: wipe this account back to a fresh state, with a goodwill bonus.
+function wipeLocalAccount(bonus) {
+  const name = window.currentPlayer.username;
+  if (name) localStorage.removeItem('player-' + name);
+  window.currentPlayer = defaultPlayer();
+  window.currentPlayer.username = name;
+  window.currentPlayer.balance = 1000 + (bonus || 0);
+  savePlayerData();
+  if (window.applyCosmeticsToLocalAvatar) window.applyCosmeticsToLocalAvatar();
+}
+
 function recordGameStat(game, won) {
   const s = window.currentPlayer.stats || (window.currentPlayer.stats = { gamesPlayed: 0, totalWins: 0, totalLosses: 0 });
   s.gamesPlayed++;
@@ -147,6 +158,7 @@ window.updateBalance = updateBalance;
 window.addInventoryItem = addInventoryItem;
 window.getInventory = getInventory;
 window.recordGameStat = recordGameStat;
+window.wipeLocalAccount = wipeLocalAccount;
 window.ownsCosmetic = ownsCosmetic;
 window.addOwnedCosmetic = addOwnedCosmetic;
 window.equipCosmetic = equipCosmetic;

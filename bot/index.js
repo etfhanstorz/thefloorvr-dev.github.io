@@ -6,6 +6,18 @@ const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const OWNER_ID = process.env.OWNER_ID;
 const MQTT_URL = process.env.MQTT_URL || 'wss://broker.hivemq.com:8884/mqtt';
 const MQTT_TOPIC = 'thefloorvr/admin-events';
+const MQTT_WIPE = 'thefloorvr/wipe-window';
+
+// parse "1pm" / "13:00" / "3:30pm" -> epoch ms today, in the bot machine's local TZ
+function parseLocalTime(s) {
+  if (!s) return null;
+  const m = String(s).trim().toLowerCase().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (!m) return null;
+  let h = parseInt(m[1]); const min = m[2] ? parseInt(m[2]) : 0; const ap = m[3];
+  if (ap === 'pm' && h < 12) h += 12;
+  if (ap === 'am' && h === 12) h = 0;
+  const d = new Date(); d.setHours(h, min, 0, 0); return d.getTime();
+}
 const MQTT_QUERY = 'thefloorvr/admin-query';
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages] });
@@ -103,6 +115,15 @@ const commands = [
   {
     name: 'currentstatus',
     description: 'Show current game status'
+  },
+  {
+    name: 'resetdatabase',
+    description: 'DANGER: wipe accounts of players who log in during a window (+1000 P$ goodwill)',
+    options: [
+      { name: 'confirm', type: 5, description: 'Set to True to confirm this destructive reset', required: true },
+      { name: 'from', type: 3, description: 'Window start in your local time, e.g. 1pm or 13:00 (blank = now)', required: false },
+      { name: 'to', type: 3, description: 'Window end, e.g. 3pm or 15:00 (blank = everyone, immediately)', required: false }
+    ]
   }
 ];
 
@@ -240,6 +261,29 @@ client.on('interactionCreate', async (interaction) => {
 - MQTT broker: ✓ Connected
 - Discord: ✓ Connected
       `);
+    }
+    else if (cmd === 'resetdatabase') {
+      const confirm = interaction.options.getBoolean('confirm');
+      if (!confirm) {
+        await interaction.reply({ content: '❌ Set `confirm:True` to run this destructive reset.', ephemeral: true });
+        return;
+      }
+      const fromStr = interaction.options.getString('from');
+      const toStr = interaction.options.getString('to');
+      const from = parseLocalTime(fromStr);
+      const to = parseLocalTime(toStr);
+      const immediate = !from && !to;
+      const payload = { id: Date.now(), from, to, immediate };
+
+      // retained for a window (so mid-window logins are caught); one-shot if immediate
+      mqttClient.publish(MQTT_WIPE, JSON.stringify(payload), { retain: !immediate, qos: 1 }, (err) => {
+        if (err) console.error('wipe publish error:', err);
+      });
+
+      const when = immediate
+        ? 'EVERYONE online right now'
+        : `players who log in between **${fromStr || 'now'}** and **${toStr || 'later'}** (bot local time)`;
+      await interaction.reply(`🗑️ Account reset armed for ${when}. Wiped players get +1000 P$.`);
     }
   } catch (e) {
     console.error('Command error:', e);
