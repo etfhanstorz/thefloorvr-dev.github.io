@@ -48,6 +48,12 @@ function login() {
     return;
   }
 
+  // Check if banned
+  if (localStorage.getItem('floorVrBanned') === 'true') {
+    alert('❌ You have been banned from this game');
+    return;
+  }
+
   // Store username for later use
   window.currentUsername = username;
 

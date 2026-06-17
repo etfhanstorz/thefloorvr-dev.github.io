@@ -66,27 +66,78 @@ async function initMqtt() {
 }
 
 function handleAdminEvent(event) {
-  const { type, amount, multiplier, duration, name } = event;
+  const { type, amount, multiplier, duration, name, action, username, value, target } = event;
 
   switch (type) {
+    case 'query-players':
+      // Respond with player data
+      publishToMqtt('thefloorvr/admin-query/response', {
+        peerId: initDeviceId(),
+        username: window.currentPlayer.username,
+        balance: window.currentPlayer.balance,
+        stats: window.currentPlayer.stats || {}
+      });
+      break;
+
     case 'tokens':
-      if (window.currentPlayer) {
+      if (target === 'everyone' || target === window.currentPlayer.username) {
         window.currentPlayer.balance += amount;
         savePlayerData();
         console.log(`🎁 Admin gave ${amount} tokens! Balance: ${window.currentPlayer.balance}`);
       }
       break;
+
     case 'luckboost':
-      console.log(`✨ Luck boosted by ${multiplier}x for ${duration}s`);
-      window.luckBoostActive = multiplier;
-      window.luckBoostEnd = Date.now() + (duration * 1000);
-      setTimeout(() => {
-        window.luckBoostActive = 1;
-      }, duration * 1000);
+      if (target === 'everyone' || target === window.currentPlayer.username) {
+        console.log(`✨ Luck boosted by ${multiplier}x for ${duration}s`);
+        window.luckBoostActive = multiplier;
+        window.luckBoostEnd = Date.now() + (duration * 1000);
+        setTimeout(() => {
+          window.luckBoostActive = 1;
+        }, duration * 1000);
+      }
       break;
+
+    case 'admin-action':
+      if (action === 'ban' && value === 'yes') {
+        if (username === window.currentPlayer.username) {
+          console.log('❌ You have been banned');
+          localStorage.setItem('floorVrBanned', 'true');
+          alert('You have been banned from the game');
+          location.reload();
+        }
+      } else if (action === 'unban') {
+        localStorage.removeItem('floorVrBanned');
+      } else if (action === 'balance' && username === window.currentPlayer.username) {
+        const newBalance = parseInt(value);
+        if (!isNaN(newBalance)) {
+          window.currentPlayer.balance = newBalance;
+          savePlayerData();
+          console.log(`💰 Balance set to ${newBalance}`);
+        }
+      }
+      break;
+
+    case 'announcement':
+      console.log(`📢 ${event.message}`);
+      playSoundIfNotMuted('notification');
+      alert(`📢 Announcement: ${event.message}`);
+      break;
+
     case 'event':
-      console.log(`🎉 Admin event: ${name}`);
+      console.log(`🎉 Event: ${name}`);
       triggerAdminEvent(name, event);
+      break;
+
+    case 'shutdown':
+      console.log('🔴 Server shutdown - disconnecting');
+      alert('Server is shutting down');
+      location.reload();
+      break;
+
+    case 'devmode-toggle':
+      window.devModeEnabled = !window.devModeEnabled;
+      console.log(`🔧 Dev mode: ${window.devModeEnabled ? 'ON' : 'OFF'}`);
       break;
   }
 }

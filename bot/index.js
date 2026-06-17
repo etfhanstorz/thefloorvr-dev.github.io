@@ -6,9 +6,11 @@ const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const OWNER_ID = process.env.OWNER_ID;
 const MQTT_URL = process.env.MQTT_URL || 'wss://broker.emqx.io:8084/mqtt';
 const MQTT_TOPIC = 'thefloorvr/admin-events';
+const MQTT_QUERY = 'thefloorvr/admin-query';
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages] });
 let mqttClient = null;
+let onlinePlayers = {}; // Track players who respond to queries
 
 // Connect to MQTT
 function initMqtt() {
@@ -21,6 +23,21 @@ function initMqtt() {
 
   mqttClient.on('connect', () => {
     console.log('✓ Bot connected to MQTT broker');
+    // Subscribe to player responses
+    mqttClient.subscribe(MQTT_QUERY + '/response', (err) => {
+      if (!err) console.log('✓ Subscribed to query responses');
+    });
+  });
+
+  mqttClient.on('message', (topic, message) => {
+    if (topic === MQTT_QUERY + '/response') {
+      try {
+        const data = JSON.parse(message.toString());
+        onlinePlayers[data.peerId] = data;
+      } catch (e) {
+        console.error('Failed to parse player response:', e);
+      }
+    }
   });
 
   mqttClient.on('error', (err) => {
@@ -30,6 +47,38 @@ function initMqtt() {
 
 // Register slash commands
 const commands = [
+  {
+    name: 'listplayers',
+    description: 'List all online players and their stats'
+  },
+  {
+    name: 'editplayer',
+    description: 'Edit a player (ban/mute/balance)',
+    options: [
+      { name: 'username', type: 3, description: 'Player username', required: true },
+      { name: 'action', type: 3, description: 'ban, unban, mute, unmute, balance', required: true },
+      { name: 'value', type: 3, description: 'yes/no for ban/mute, amount for balance', required: false }
+    ]
+  },
+  {
+    name: 'shutdown',
+    description: 'Kick all players from the game'
+  },
+  {
+    name: 'event',
+    description: 'Trigger a casino event',
+    options: [
+      { name: 'name', type: 3, description: 'Event name', required: true },
+      { name: 'duration', type: 4, description: 'Duration in seconds', required: false }
+    ]
+  },
+  {
+    name: 'announce',
+    description: 'Send announcement to all players',
+    options: [
+      { name: 'message', type: 3, description: 'Announcement message', required: true }
+    ]
+  },
   {
     name: 'tokens',
     description: 'Give tokens to players',
@@ -43,24 +92,17 @@ const commands = [
     description: 'Boost luck temporarily',
     options: [
       { name: 'multiplier', type: 10, description: 'Luck multiplier (e.g. 2)', required: true },
-      { name: 'duration', type: 4, description: 'Duration in seconds (default 60)', required: false },
+      { name: 'duration', type: 4, description: 'Duration in seconds', required: false },
       { name: 'player', type: 3, description: 'Player username (empty = everyone)', required: false }
     ]
   },
   {
-    name: 'event',
-    description: 'Trigger a casino event',
-    options: [
-      { name: 'name', type: 3, description: 'Event name (e.g. "tokens-rain", "lucky-hour")', required: true },
-      { name: 'duration', type: 4, description: 'Duration in seconds (default 60)', required: false }
-    ]
+    name: 'devmode',
+    description: 'Toggle dev mode (enables cheats)'
   },
   {
-    name: 'announce',
-    description: 'Send announcement to all players',
-    options: [
-      { name: 'message', type: 3, description: 'Announcement message', required: true }
-    ]
+    name: 'currentstatus',
+    description: 'Show current game status'
   }
 ];
 
@@ -94,7 +136,69 @@ client.on('interactionCreate', async (interaction) => {
   const cmd = interaction.commandName;
 
   try {
-    if (cmd === 'tokens') {
+    if (cmd === 'listplayers') {
+      await interaction.deferReply();
+
+      // Query all players
+      publishEvent({ type: 'query-players' });
+
+      // Wait for responses
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const playerList = Object.values(onlinePlayers);
+      if (playerList.length === 0) {
+        await interaction.editReply('No players online');
+        return;
+      }
+
+      const playerText = playerList.map((p, i) =>
+        `${i+1}. **${p.username}** (ID: ${p.peerId.slice(0, 8)}...)\n   Balance: ${p.balance} P$ | Games: ${p.stats?.gamesPlayed || 0}`
+      ).join('\n');
+
+      await interaction.editReply(`📋 **Online Players (${playerList.length})**\n\n${playerText}`);
+      onlinePlayers = {}; // Reset
+    }
+    else if (cmd === 'editplayer') {
+      const username = interaction.options.getString('username');
+      const action = interaction.options.getString('action');
+      const value = interaction.options.getString('value') || '';
+
+      publishEvent({
+        type: 'admin-action',
+        action,
+        username,
+        value
+      });
+
+      await interaction.reply(`✅ Admin action: **${action}** on **${username}** (value: ${value || 'N/A'})`);
+    }
+    else if (cmd === 'shutdown') {
+      publishEvent({ type: 'shutdown' });
+      await interaction.reply('🔴 Shutdown command sent to all players');
+    }
+    else if (cmd === 'event') {
+      const name = interaction.options.getString('name');
+      const duration = interaction.options.getInteger('duration') || 60;
+
+      publishEvent({
+        type: 'event',
+        name,
+        duration
+      });
+
+      await interaction.reply(`🎉 Event: **${name}** (${duration}s)`);
+    }
+    else if (cmd === 'announce') {
+      const message = interaction.options.getString('message');
+
+      publishEvent({
+        type: 'announcement',
+        message
+      });
+
+      await interaction.reply(`📢 Announced: ${message}`);
+    }
+    else if (cmd === 'tokens') {
       const amount = interaction.options.getInteger('amount');
       const player = interaction.options.getString('player') || 'everyone';
 
@@ -104,7 +208,7 @@ client.on('interactionCreate', async (interaction) => {
         target: player
       });
 
-      await interaction.reply(`✅ Gave ${amount} tokens to ${player}`);
+      await interaction.reply(`💰 Gave ${amount} tokens to ${player}`);
     }
     else if (cmd === 'luckboost') {
       const multiplier = interaction.options.getNumber('multiplier');
@@ -118,29 +222,24 @@ client.on('interactionCreate', async (interaction) => {
         target: player
       });
 
-      await interaction.reply(`✨ Boosted luck ${multiplier}x for ${duration}s (target: ${player})`);
+      await interaction.reply(`✨ Luck ${multiplier}x for ${duration}s (${player})`);
     }
-    else if (cmd === 'event') {
-      const name = interaction.options.getString('name');
-      const duration = interaction.options.getInteger('duration') || 60;
-
-      publishEvent({
-        type: 'event',
-        name,
-        duration
-      });
-
-      await interaction.reply(`🎉 Event: ${name} (${duration}s)`);
+    else if (cmd === 'devmode') {
+      publishEvent({ type: 'devmode-toggle' });
+      await interaction.reply('🔧 Dev mode toggled');
     }
-    else if (cmd === 'announce') {
-      const message = interaction.options.getString('message');
+    else if (cmd === 'currentstatus') {
+      const uptime = process.uptime();
+      const hours = Math.floor(uptime / 3600);
+      const mins = Math.floor((uptime % 3600) / 60);
 
-      publishEvent({
-        type: 'announcement',
-        message
-      });
-
-      await interaction.reply(`📢 Announced: ${message}`);
+      await interaction.reply(`
+📊 **Game Status**
+- Bot uptime: ${hours}h ${mins}m
+- Online players: ${Object.keys(onlinePlayers).length}
+- MQTT broker: ✓ Connected
+- Discord: ✓ Connected
+      `);
     }
   } catch (e) {
     console.error('Command error:', e);
