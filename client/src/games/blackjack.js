@@ -73,6 +73,7 @@ function placeBet() {
     alert('Invalid bet amount');
     return;
   }
+  playSoundIfNotMuted('blackjack_deal');
   if (socket) socket.emit('blackjack_bet', { amount });
 }
 
@@ -127,4 +128,15 @@ function updateBlackjackUI(state) {
 // Socket listeners
 window.onBlackjackStateUpdate = (state) => {
   updateBlackjackUI(state);
+
+  if (state.status === 'results') {
+    const player = state.players.find(p => p.id === currentPlayerId);
+    if (player) {
+      if (player.result === 'win') {
+        playSoundIfNotMuted('win');
+      } else if (player.result === 'loss' || player.result === 'bust') {
+        playSoundIfNotMuted('loss');
+      }
+    }
+  }
 };

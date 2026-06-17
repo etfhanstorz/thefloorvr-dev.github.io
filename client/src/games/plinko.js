@@ -54,6 +54,7 @@ function playPlinko() {
     return;
   }
 
+  playSoundIfNotMuted('plinko_drop');
   document.getElementById('plinko-status').textContent = 'Playing...';
   document.getElementById('plinko-result').style.display = 'none';
 
@@ -64,9 +65,12 @@ function playPlinko() {
 
 window.onPlinkoResult = (result) => {
   if (!result.success) {
+    playSoundIfNotMuted('loss');
     document.getElementById('plinko-status').textContent = '❌ ' + result.error;
     return;
   }
+
+  playSoundIfNotMuted(result.multiplier > 1 ? 'win' : 'loss');
 
   const resultDiv = document.getElementById('plinko-result');
   resultDiv.innerHTML = `

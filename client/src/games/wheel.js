@@ -54,6 +54,7 @@ function spinWheel() {
     return;
   }
 
+  playSoundIfNotMuted('wheel_spin');
   document.getElementById('wheel-status').textContent = 'Spinning...';
   document.getElementById('wheel-result').style.display = 'none';
 
@@ -64,9 +65,12 @@ function spinWheel() {
 
 window.onWheelResult = (result) => {
   if (!result.success) {
+    playSoundIfNotMuted('loss');
     document.getElementById('wheel-status').textContent = '❌ ' + result.error;
     return;
   }
+
+  playSoundIfNotMuted(result.multiplier > 1 ? 'win' : 'loss');
 
   const resultDiv = document.getElementById('wheel-result');
   const color = result.multiplier > 1 ? '#00ff00' : result.multiplier < 0 ? '#ff0000' : '#ffff00';
