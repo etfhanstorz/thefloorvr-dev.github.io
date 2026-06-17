@@ -23,8 +23,14 @@ const io = socketIo(server, {
 const SECRET = process.env.JWT_SECRET || 'dev-secret-key';
 const PORT = process.env.PORT || 9000;
 
-// Middleware
-app.use(cors());
+// Middleware - CORS for GitHub Pages
+const corsOptions = {
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Routes

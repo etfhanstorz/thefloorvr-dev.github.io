@@ -3,10 +3,19 @@ let currentPlayerId = null;
 let currentRoom = null;
 
 function initSocket(token) {
-  // In development, connect to localhost:9000. In production, connect to the same host.
-  const serverUrl = window.location.hostname === 'localhost'
-    ? 'http://localhost:9000'
-    : window.location.origin;
+  // Determine server URL based on environment
+  let serverUrl;
+
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    // Development: connect to local server
+    serverUrl = 'http://localhost:9000';
+  } else if (window.location.hostname === 'thefloorvr-dev.github.io') {
+    // GitHub Pages: connect to production server (set this to your actual server)
+    serverUrl = 'https://thefloorvr.fly.dev'; // or your server URL
+  } else {
+    // Default: use same host
+    serverUrl = window.location.origin;
+  }
 
   socket = io(serverUrl, {
     auth: { token },
