@@ -62,6 +62,10 @@ function unmutePlayer(playerId) {
   }
 }
 
+function isDevTestUser(username) {
+  return username.endsWith('.devtest');
+}
+
 module.exports = {
   initDb,
   getPlayerByUsername,
@@ -72,5 +76,6 @@ module.exports = {
   getBalance,
   banPlayer,
   mutePlayer,
-  unmutePlayer
+  unmutePlayer,
+  isDevTestUser
 };

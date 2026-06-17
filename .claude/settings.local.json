@@ -17,7 +17,8 @@
       "Bash(curl -s -X POST http://localhost:3001/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"alice\",\"password\":\"test123\"}')",
       "Bash(curl -s -X POST http://localhost:3001/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"bob\",\"password\":\"test123\"}')",
       "Bash(curl -s http://localhost:3001/)",
-      "Bash(curl -s -I https://etfhanstorz.github.io/thefloorvr-dev.github.io/)"
+      "Bash(curl -s -I https://etfhanstorz.github.io/thefloorvr-dev.github.io/)",
+      "Bash(curl -s https://api.github.com/repos/etfhanstorz/thefloorvr-dev.github.io/actions/runs)"
     ]
   }
 }

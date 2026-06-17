@@ -8,6 +8,7 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const { handleSocketConnection } = require('./socket/rooms');
+const { handleGameSockets } = require('./socket/games');
 const db = require('./db/database');
 
 const app = express();
@@ -52,7 +53,13 @@ io.use((socket, next) => {
 });
 
 // Socket connections
-io.on('connection', handleSocketConnection(io));
+io.on('connection', (socket) => {
+  // Room management
+  handleSocketConnection(io)(socket);
+
+  // Game handlers
+  handleGameSockets(io)(socket);
+});
 
 // Start server
 db.initDb();

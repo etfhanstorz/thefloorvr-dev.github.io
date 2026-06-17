@@ -55,6 +55,16 @@ function initSocket(token) {
     console.log('Player left:', data.playerId);
     if (window.onPlayerLeft) window.onPlayerLeft(data);
   });
+
+  socket.on('blackjack_update', (state) => {
+    console.log('Blackjack update:', state);
+    if (window.onBlackjackStateUpdate) window.onBlackjackStateUpdate(state);
+  });
+
+  socket.on('error', (message) => {
+    console.error('Socket error:', message);
+    alert('Error: ' + message);
+  });
 }
 
 function updateUI(id, value) {

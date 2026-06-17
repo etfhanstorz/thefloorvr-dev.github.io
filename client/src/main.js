@@ -39,6 +39,18 @@ function init() {
   vrButton.style.cssText = 'position: absolute; bottom: 20px; right: 20px; padding: 10px 20px; background: #ff6600; color: white; border: none; border-radius: 5px; cursor: pointer; z-index: 100; font-size: 16px;';
   document.body.appendChild(vrButton);
 
+  // Blackjack Button
+  const blackjackBtn = document.createElement('button');
+  blackjackBtn.innerHTML = '♠️ Blackjack';
+  blackjackBtn.style.cssText = 'position: absolute; bottom: 60px; right: 20px; padding: 10px 20px; background: #00aa00; color: white; border: none; border-radius: 5px; cursor: pointer; z-index: 100; font-size: 14px;';
+  blackjackBtn.addEventListener('click', () => {
+    showBlackjack();
+    if (socket && socket.connected) {
+      socket.emit('join_blackjack');
+    }
+  });
+  document.body.appendChild(blackjackBtn);
+
   vrButton.addEventListener('click', async () => {
     if (!isVR && navigator.xr) {
       try {
