@@ -38,7 +38,7 @@
   </div>
 
   <script>
-    function doLogin() {
+    const doLoginFn = () => {
       const u = document.getElementById('username').value;
       const p = document.getElementById('password').value;
       if (!u || !p) { alert('Enter username and password'); return; }
@@ -49,8 +49,11 @@
       document.getElementById('ui').classList.remove('hidden');
       window.initializeGame && window.initializeGame();
       setTimeout(() => window.initGameScene && window.initGameScene(), 100);
-    }
-    function doRegister() { doLogin(); }
+    };
+    window.login = doLoginFn;
+    window.register = doLoginFn;
+    window.doLogin = doLoginFn;
+    window.doRegister = doLoginFn;
   </script>
 
   <div id="ui" class="hidden">
