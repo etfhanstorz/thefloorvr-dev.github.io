@@ -6,6 +6,8 @@
 const MQTT_URL = 'wss://broker.hivemq.com:8884/mqtt';
 const MQTT_TOPIC = 'thefloorvr/admin-events';
 const MQTT_WIPE = 'thefloorvr/wipe-window'; // retained: an active account-reset window
+const MQTT_LOGS = 'thefloorvr/logs';        // per-client console output (admins watch)
+window._remoteLogs = {};                    // { username: [{l, m, t}] }
 
 let mqttClient = null;
 let deviceId = null;
@@ -42,14 +44,18 @@ async function initMqtt() {
 
     mqttClient.on('connect', () => {
       console.log('✓ Connected to MQTT broker');
-      mqttClient.subscribe([MQTT_TOPIC, MQTT_WIPE], (err) => {
+      const topics = [MQTT_TOPIC, MQTT_WIPE];
+      // admins also watch everyone's console logs
+      if (window.currentPlayer && window.currentPlayer.is_admin) topics.push(MQTT_LOGS);
+      mqttClient.subscribe(topics, (err) => {
         if (err) console.error('MQTT subscribe error:', err);
-        else console.log(`✓ Subscribed to ${MQTT_TOPIC} + wipe window`);
+        else console.log('✓ Subscribed to admin-events + wipe window' + (topics.includes(MQTT_LOGS) ? ' + logs' : ''));
       });
     });
 
     mqttClient.on('message', (topic, message) => {
       try {
+        if (topic === MQTT_LOGS) { handleRemoteLog(message.toString()); return; }
         const data = JSON.parse(message.toString());
         if (topic === MQTT_WIPE) handleWipeWindow(data);
         else handleAdminEvent(data);
@@ -179,5 +185,22 @@ function publishToMqtt(topic, message) {
   }
 }
 
+// publish one console line (called by remote-console.js)
+function mqttPublishLog(level, msg) {
+  if (!mqttClient || !mqttClient.connected) return;
+  const u = (window.currentPlayer && window.currentPlayer.username) || window.currentUsername || 'anon';
+  mqttClient.publish(MQTT_LOGS, JSON.stringify({ u, l: level, m: String(msg).slice(0, 300), t: Date.now() }));
+}
+
+// admin side: collect incoming logs per player (capped)
+function handleRemoteLog(raw) {
+  let d; try { d = JSON.parse(raw); } catch (e) { return; }
+  if (!d || !d.u) return;
+  const arr = window._remoteLogs[d.u] || (window._remoteLogs[d.u] = []);
+  arr.push({ l: d.l, m: d.m, t: d.t });
+  if (arr.length > 300) arr.shift();
+}
+
 window.initMqtt = initMqtt;
 window.publishToMqtt = publishToMqtt;
+window.mqttPublishLog = mqttPublishLog;

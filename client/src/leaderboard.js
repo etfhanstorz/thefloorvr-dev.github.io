@@ -36,7 +36,7 @@ async function showLeaderboard() {
   lbUI.style.display = 'block';
   await renderLeaderboard();
 }
-function closeLeaderboard() { if (lbUI) lbUI.style.display = 'none'; }
+function closeLeaderboard() { if (lbUI) lbUI.style.display = 'none'; if (admTimer) { clearInterval(admTimer); admTimer = null; } }
 function lbSwitch(key) { lbTab = key; renderLeaderboard(); }
 
 async function renderLeaderboard() {
@@ -74,23 +74,74 @@ async function renderLeaderboard() {
 }
 
 // ---- admin console (only if is_admin) ----
-async function showAdminConsole() {
+let admView = 'players';     // 'players' | 'console'
+let admLogFilter = 'all';
+let admTimer = null;
+
+function admTab(label, key) {
+  const active = admView === key;
+  return `<button onclick="admSwitch('${key}')" style="flex:1;padding:8px;cursor:pointer;border:none;border-radius:8px;font-weight:700;
+    background:${active ? '#ff6b6b' : 'rgba(255,255,255,0.08)'};color:${active ? '#1a0606' : '#cdbff5'};">${label}</button>`;
+}
+
+function showAdminConsole() {
   if (!window.currentPlayer || !window.currentPlayer.is_admin) return;
   if (!lbUI) initLeaderboardUI();
   lbUI.style.display = 'block';
-  lbUI.innerHTML = `<h2 style="margin:0 0 12px; color:#ff6b6b;">🛡️ Admin Console</h2><div id="adm-rows">Loading…</div>
+  renderAdmin();
+}
+function admSwitch(v) { admView = v; renderAdmin(); }
+function admFilter(u) { admLogFilter = u; renderAdminBody(); }
+
+function renderAdmin() {
+  clearInterval(admTimer); admTimer = null;
+  lbUI.innerHTML = `<h2 style="margin:0 0 10px; color:#ff6b6b;">🛡️ Admin Console</h2>
+    <div style="display:flex; gap:6px; margin-bottom:12px;">${admTab('Players', 'players')}${admTab('Console', 'console')}</div>
+    <div id="adm-body">Loading…</div>
     <button onclick="closeLeaderboard()" style="width:100%;padding:10px;margin-top:14px;background:#ff3355;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">Close</button>`;
-  const all = (window.sbFetchAllPlayers) ? await sbFetchAllPlayers() : [];
-  const rows = all.map(p => `<div style="display:flex; gap:8px; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.08); font-size:13px;">
-      <span style="flex:1.4; ${p.is_admin ? 'color:#ff6b6b;font-weight:700;' : ''}">${escapeHtml(p.username)}${p.is_admin ? ' 🛡️' : ''}</span>
-      <span style="flex:1; color:#ffd700;">P$ ${p.balance}</span>
-      <span style="flex:0.8; color:#9fe;">C$ ${p.c_balance || 0}</span>
-      <span style="flex:0.8; color:#aaa;">${fmtTime(p.time_played)}</span>
-    </div>`).join('');
-  const box = document.getElementById('adm-rows');
-  if (box) box.innerHTML = `<div style="display:flex; gap:8px; padding:4px 8px; font-size:11px; color:#888; text-transform:uppercase;">
-      <span style="flex:1.4;">Player (${all.length})</span><span style="flex:1;">P$</span><span style="flex:0.8;">C$</span><span style="flex:0.8;">Time</span>
-    </div>` + (rows || '<p style="color:#888;">No players.</p>');
+  renderAdminBody();
+  if (admView === 'console') admTimer = setInterval(renderAdminBody, 1000); // live logs
+}
+
+async function renderAdminBody() {
+  const box = document.getElementById('adm-body');
+  if (!box) return;
+
+  if (admView === 'players') {
+    const all = (window.sbFetchAllPlayers) ? await sbFetchAllPlayers() : [];
+    const rows = all.map(p => `<div style="display:flex; gap:8px; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.08); font-size:13px;">
+        <span style="flex:1.4; ${p.is_admin ? 'color:#ff6b6b;font-weight:700;' : ''}">${escapeHtml(p.username)}${p.is_admin ? ' 🛡️' : ''}</span>
+        <span style="flex:1; color:#ffd700;">P$ ${p.balance}</span>
+        <span style="flex:0.8; color:#9fe;">C$ ${p.c_balance || 0}</span>
+        <span style="flex:0.8; color:#aaa;">${fmtTime(p.time_played)}</span>
+      </div>`).join('');
+    box.innerHTML = `<div style="display:flex; gap:8px; padding:4px 8px; font-size:11px; color:#888; text-transform:uppercase;">
+        <span style="flex:1.4;">Player (${all.length})</span><span style="flex:1;">P$</span><span style="flex:0.8;">C$</span><span style="flex:0.8;">Time</span>
+      </div>` + (rows || '<p style="color:#888;">No players.</p>');
+    return;
+  }
+
+  // console view: live logs forwarded from every client over MQTT
+  const logs = window._remoteLogs || {};
+  const users = Object.keys(logs);
+  const filterBtns = ['all'].concat(users).map(u =>
+    `<button onclick="admFilter('${escapeHtml(u)}')" style="padding:4px 8px;margin:2px;cursor:pointer;border:none;border-radius:6px;font-size:11px;
+      background:${admLogFilter === u ? '#ffd24a' : 'rgba(255,255,255,0.08)'};color:${admLogFilter === u ? '#1a1006' : '#cdbff5'};">${u === 'all' ? 'All' : escapeHtml(u)}</button>`).join('');
+
+  let lines = [];
+  const pick = admLogFilter === 'all' ? users : (logs[admLogFilter] ? [admLogFilter] : []);
+  pick.forEach(u => (logs[u] || []).forEach(e => lines.push({ u, ...e })));
+  lines.sort((a, b) => a.t - b.t);
+  lines = lines.slice(-200);
+
+  const color = (l) => l === 'error' ? '#ff6b6b' : l === 'warn' ? '#ffd24a' : '#9fe';
+  const body = lines.length ? lines.map(e =>
+    `<div style="font-family:monospace;font-size:11px;padding:2px 0;color:${color(e.l)};border-bottom:1px solid rgba(255,255,255,0.04);">
+      <span style="color:#888;">[${escapeHtml(e.u)}]</span> ${escapeHtml(e.m)}</div>`).join('')
+    : '<p style="color:#888;">No logs yet. (Players send logs while connected.)</p>';
+
+  box.innerHTML = `<div style="margin-bottom:8px;">${filterBtns}</div>
+    <div style="max-height:42vh; overflow-y:auto; background:rgba(0,0,0,0.4); border-radius:8px; padding:8px;">${body}</div>`;
 }
 
 function escapeHtml(s) { return String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -99,3 +150,5 @@ window.showLeaderboard = showLeaderboard;
 window.closeLeaderboard = closeLeaderboard;
 window.lbSwitch = lbSwitch;
 window.showAdminConsole = showAdminConsole;
+window.admSwitch = admSwitch;
+window.admFilter = admFilter;
