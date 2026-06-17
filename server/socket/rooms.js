@@ -37,11 +37,23 @@ class Room {
   }
 }
 
-function getOrCreateRoom(playerId) {
-  // Find least-full room
+function getOrCreateRoom(playerId, username) {
+  const db = require('../db/database');
+  const isDevTest = db.isDevTestUser(username);
+
+  // Devtest users go to devtest room
+  if (isDevTest) {
+    if (!rooms['devtest']) {
+      const devtestRoom = new Room('devtest');
+      rooms['devtest'] = devtestRoom;
+    }
+    return rooms['devtest'];
+  }
+
+  // Regular users find least-full room
   let targetRoom = null;
   for (const roomId in rooms) {
-    if (rooms[roomId].getPlayers().length < 20) {
+    if (roomId !== 'devtest' && rooms[roomId].getPlayers().length < 20) {
       targetRoom = rooms[roomId];
       break;
     }
@@ -75,7 +87,7 @@ function handleSocketConnection(io) {
     console.log(`Player ${playerId} (${username}) connected`);
 
     // Auto-join room on connect
-    currentRoom = getOrCreateRoom(playerId);
+    currentRoom = getOrCreateRoom(playerId, username);
     currentRoom.addPlayer(playerId, username);
     socket.join(currentRoom.id);
 

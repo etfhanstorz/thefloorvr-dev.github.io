@@ -23,10 +23,18 @@ function initBlackjackUI() {
 
 function showBlackjack() {
   if (!tableUI) initBlackjackUI();
+
+  // Check if user is devtest
+  const username = document.getElementById('username').value;
+  if (!username.endsWith('.devtest')) {
+    alert('❌ Blackjack is only available for .devtest accounts');
+    return;
+  }
+
   tableUI.style.display = 'block';
   tableUI.innerHTML = `
     <h3>♠️ Blackjack Table</h3>
-    <div id="game-status">Waiting for players...</div>
+    <div id="game-status">Loading...</div>
     <div id="dealer-hand" style="margin: 10px 0;">
       <strong>Dealer:</strong> <span id="dealer-cards">-</span>
     </div>
@@ -44,6 +52,14 @@ function showBlackjack() {
     <div id="result" style="margin: 10px 0; display: none; color: #00ff00; font-weight: bold;"></div>
     <button onclick="closeBlackjack()" style="width: 100%; padding: 8px; background: #ff0000; color: white; border: none; cursor: pointer; margin-top: 10px;">Exit Game</button>
   `;
+
+  // Emit join after UI is shown
+  if (socket && socket.connected) {
+    console.log('Emitting join_blackjack...');
+    socket.emit('join_blackjack');
+  } else {
+    alert('Not connected to server');
+  }
 }
 
 function closeBlackjack() {
