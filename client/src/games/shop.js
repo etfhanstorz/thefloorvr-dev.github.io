@@ -79,6 +79,7 @@ window.onShopItems = (items) => {
 };
 
 function buyItem(itemId) {
+  playSoundIfNotMuted('purchase');
   if (socket) {
     socket.emit('purchase_item', { itemId });
   }
