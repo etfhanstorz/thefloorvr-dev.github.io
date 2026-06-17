@@ -8,6 +8,9 @@ function defaultPlayer() {
   return {
     username: '',
     balance: 1000,
+    c_balance: 0,
+    time_played: 0,   // seconds
+    is_admin: false,
     inventory: [],
     // cosmetics: which body colour / hat is equipped, and what's owned
     cosmetics: { bodyColor: null, hat: null, owned: [] },
@@ -153,6 +156,13 @@ function applyWinModifiers(net) {
   if (Math.random() < getCritChance()) { payout *= 3; crit = true; }
   return { payout: Math.round(payout), crit };
 }
+
+// Track play time (seconds) while logged in.
+setInterval(() => {
+  if (window.currentPlayer && window.currentPlayer.username) {
+    window.currentPlayer.time_played = (window.currentPlayer.time_played || 0) + 1;
+  }
+}, 1000);
 
 // Periodic state broadcast for remote avatars.
 setInterval(() => { if (window.broadcastState) window.broadcastState(); }, 100);

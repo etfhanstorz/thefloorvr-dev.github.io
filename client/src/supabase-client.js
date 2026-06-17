@@ -106,6 +106,9 @@ async function loadPlayerFromSupabase(username) {
   window.currentPlayer = {
     username: data.username,
     balance: data.balance,
+    c_balance: data.c_balance || 0,
+    time_played: data.time_played || 0,
+    is_admin: !!data.is_admin,
     cosmetics: data.cosmetics || { bodyColor: null, hat: null, owned: [] },
     upgrades: data.upgrades || { luck: 0, payout: 0, crit: 0 },
     stats: data.stats || { gamesPlayed: 0, totalWins: 0, totalLosses: 0 },
@@ -113,6 +116,28 @@ async function loadPlayerFromSupabase(username) {
   };
   window.sbActive = true;
 }
+
+// ---- leaderboard / admin reads (public-read RLS) ----
+async function sbFetchLeaderboard(column, limit) {
+  if (!sb) return [];
+  const { data, error } = await sb.from('players')
+    .select('username, balance, c_balance, time_played')
+    .order(column, { ascending: false })
+    .limit(limit || 15);
+  if (error) { console.error('leaderboard fetch:', error); return []; }
+  return data || [];
+}
+
+async function sbFetchAllPlayers() {
+  if (!sb) return [];
+  const { data, error } = await sb.from('players')
+    .select('username, balance, c_balance, time_played, is_admin, updated_at')
+    .order('balance', { ascending: false });
+  if (error) { console.error('admin fetch:', error); return []; }
+  return data || [];
+}
+window.sbFetchLeaderboard = sbFetchLeaderboard;
+window.sbFetchAllPlayers = sbFetchAllPlayers;
 
 // debounced cloud save (called by player-data.savePlayerData)
 let _sbSaveTimer = null;
@@ -126,6 +151,8 @@ function sbSavePlayer() {
       const p = window.currentPlayer;
       await sb.from('players').update({
         balance: Math.floor(p.balance),
+        c_balance: Math.floor(p.c_balance || 0),
+        time_played: Math.floor(p.time_played || 0),
         cosmetics: p.cosmetics,
         upgrades: p.upgrades,
         stats: p.stats,
@@ -140,6 +167,9 @@ function enterGame(username) {
   window.currentPlayerId = 'local-' + username;
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('ui').classList.remove('hidden');
+  // reveal the admin console button for admins
+  const ab = document.getElementById('adminBtn');
+  if (ab) ab.style.display = (window.currentPlayer && window.currentPlayer.is_admin) ? '' : 'none';
   if (window.initializeGame) window.initializeGame();
   setTimeout(() => window.initGameScene && window.initGameScene(), 100);
 }
