@@ -25,8 +25,8 @@ const SNAP_TURN_RAD = 30 * Math.PI / 180;
 function init() {
   // Scene
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1a1a2e);
-  scene.fog = new THREE.Fog(0x1a1a2e, 200, 500);
+  scene.background = new THREE.Color(0x0a0614);
+  scene.fog = new THREE.Fog(0x0a0614, 45, 150);
 
   // Camera inside a movable rig (rig moves the player; headset drives camera in VR)
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -42,6 +42,10 @@ function init() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
