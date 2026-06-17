@@ -109,6 +109,7 @@ async function loadPlayerFromSupabase(username) {
     c_balance: data.c_balance || 0,
     time_played: data.time_played || 0,
     is_admin: !!data.is_admin,
+    pc_able: !!data.pc_able,
     cosmetics: data.cosmetics || { bodyColor: null, hat: null, owned: [] },
     upgrades: data.upgrades || { luck: 0, payout: 0, crit: 0 },
     stats: data.stats || { gamesPlayed: 0, totalWins: 0, totalLosses: 0 },
@@ -131,7 +132,7 @@ async function sbFetchLeaderboard(column, limit) {
 async function sbFetchAllPlayers() {
   if (!sb) return [];
   const { data, error } = await sb.from('players')
-    .select('username, balance, c_balance, time_played, is_admin, updated_at')
+    .select('username, balance, c_balance, time_played, is_admin, pc_able, updated_at')
     .order('balance', { ascending: false });
   if (error) { console.error('admin fetch:', error); return []; }
   return data || [];

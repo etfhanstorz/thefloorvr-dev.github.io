@@ -75,8 +75,9 @@ function init() {
 
   // VR button
   const vrButton = document.createElement('button');
+  vrButton.id = 'vrButton';
   vrButton.innerHTML = 'Enter VR';
-  vrButton.style.cssText = 'position: absolute; bottom: 20px; right: 20px; padding: 10px 20px; background: #ff6600; color: white; border: none; border-radius: 5px; cursor: pointer; z-index: 100; font-size: 16px;';
+  vrButton.style.cssText = 'position: absolute; bottom: 20px; right: 20px; padding: 10px 20px; background: #ff6600; color: white; border: none; border-radius: 5px; cursor: pointer; z-index: 210; font-size: 16px;';
   document.body.appendChild(vrButton);
 
   // Game buttons (exit pointer lock so the overlay is clickable)
@@ -106,12 +107,13 @@ function init() {
         xrSession = session;
         isVR = true;
         vrButton.innerHTML = 'Exit VR';
+        enforcePcGate(); // in VR now -> always allowed
         xrRefSpace = await session.requestReferenceSpace('local-floor');
 
         // Tracked controllers + laser pointers (stations/panels already built at startup)
         setupVRControllers();
 
-        session.addEventListener('end', () => { isVR = false; vrButton.innerHTML = 'Enter VR'; });
+        session.addEventListener('end', () => { isVR = false; vrButton.innerHTML = 'Enter VR'; enforcePcGate(); });
         renderer.xr.setSession(session);
       } catch (e) {
         console.error('VR not available:', e);
@@ -448,7 +450,36 @@ function initGameScene() {
     localAvatar = avatar;
     if (window.applyCosmeticsToLocalAvatar) window.applyCosmeticsToLocalAvatar();
   }
+  enforcePcGate();
 }
+
+// PC-mode access: gate the flat desktop experience behind the players.pc_able flag.
+// Always allowed in VR, for admins, or when not signed in via Supabase (offline).
+function pcAllowed() {
+  if (isVR) return true;
+  if (!window.sbActive) return true;
+  const p = window.currentPlayer || {};
+  return !!(p.pc_able || p.is_admin);
+}
+
+function enforcePcGate() {
+  let g = document.getElementById('pcGate');
+  if (pcAllowed()) { if (g) g.style.display = 'none'; return; }
+  if (!g) {
+    g = document.createElement('div');
+    g.id = 'pcGate';
+    g.style.cssText = 'position:fixed; inset:0; z-index:200; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; background:rgba(6,4,14,0.97); color:#fff; font-family:Segoe UI,Arial,sans-serif; text-align:center;';
+    g.innerHTML = `
+      <div style="font-size:54px;">🖥️🚫</div>
+      <h2 style="color:#ffd24a; margin:0;">PC mode is restricted</h2>
+      <p style="max-width:380px; color:#cdbff5;">Your account can only play in VR. Put on your headset and press <b>Enter VR</b>.</p>
+      <button onclick="document.getElementById('vrButton') && document.getElementById('vrButton').click()" style="padding:12px 22px; background:linear-gradient(135deg,#ffd24a,#ff9d2f); color:#1a1006; border:none; border-radius:10px; font-weight:700; cursor:pointer;">Enter VR</button>
+      <button onclick="location.reload()" style="padding:8px 16px; background:transparent; color:#9fb4ff; border:1px solid rgba(157,180,255,0.4); border-radius:8px; cursor:pointer;">Log out</button>`;
+    document.body.appendChild(g);
+  }
+  g.style.display = 'flex';
+}
+window.enforcePcGate = enforcePcGate;
 
 window.initGameScene = initGameScene;
 window.toggleVoice = toggleVoice;

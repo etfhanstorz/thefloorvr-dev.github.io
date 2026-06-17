@@ -110,7 +110,7 @@ async function renderAdminBody() {
   if (admView === 'players') {
     const all = (window.sbFetchAllPlayers) ? await sbFetchAllPlayers() : [];
     const rows = all.map(p => `<div style="display:flex; gap:8px; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.08); font-size:13px;">
-        <span style="flex:1.4; ${p.is_admin ? 'color:#ff6b6b;font-weight:700;' : ''}">${escapeHtml(p.username)}${p.is_admin ? ' 🛡️' : ''}</span>
+        <span style="flex:1.4; ${p.is_admin ? 'color:#ff6b6b;font-weight:700;' : ''}">${escapeHtml(p.username)}${p.is_admin ? ' 🛡️' : ''}${p.pc_able ? ' 💻' : ''}</span>
         <span style="flex:1; color:#ffd700;">P$ ${p.balance}</span>
         <span style="flex:0.8; color:#9fe;">C$ ${p.c_balance || 0}</span>
         <span style="flex:0.8; color:#aaa;">${fmtTime(p.time_played)}</span>
