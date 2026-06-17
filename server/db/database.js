@@ -72,6 +72,19 @@ function resetPassword(playerId, newPassword) {
   }
 }
 
+function addInventoryItem(playerId, itemId) {
+  if (players[playerId]) {
+    players[playerId].inventory.push({
+      itemId,
+      purchasedAt: new Date().toISOString()
+    });
+  }
+}
+
+function getInventory(playerId) {
+  return players[playerId] ? players[playerId].inventory : [];
+}
+
 module.exports = {
   initDb,
   getPlayerByUsername,
@@ -84,5 +97,7 @@ module.exports = {
   mutePlayer,
   unmutePlayer,
   isDevTestUser,
-  resetPassword
+  resetPassword,
+  addInventoryItem,
+  getInventory
 };

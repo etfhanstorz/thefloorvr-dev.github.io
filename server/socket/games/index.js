@@ -1,8 +1,13 @@
 const BlackjackTable = require('./blackjack');
+const PlinkoGame = require('./plinko');
+const WheelGame = require('./wheel');
+const { getShop, purchaseItem } = require('./shop');
 const db = require('../../db/database');
 
 const tables = {};
 let tableIdCounter = 1;
+const plinkoGame = new PlinkoGame();
+const wheelGame = new WheelGame();
 
 function handleGameSockets(io) {
   return (socket) => {
@@ -73,6 +78,33 @@ function handleGameSockets(io) {
           io.to(`blackjack_${table.tableId}`).emit('blackjack_update', table.getState());
         }
       }
+    });
+
+    // Plinko
+    socket.on('plinko_play', (data) => {
+      const result = plinkoGame.play(playerId, data.betAmount);
+      socket.emit('plinko_result', result);
+    });
+
+    // Wheel
+    socket.on('wheel_spin', (data) => {
+      const result = wheelGame.spin(playerId, data.baseAmount || 100);
+      socket.emit('wheel_result', result);
+    });
+
+    // Shop
+    socket.on('get_shop', () => {
+      socket.emit('shop_items', getShop());
+    });
+
+    socket.on('purchase_item', (data) => {
+      const result = purchaseItem(playerId, data.itemId);
+      socket.emit('purchase_result', result);
+    });
+
+    socket.on('get_inventory', () => {
+      const inventory = db.getInventory(playerId);
+      socket.emit('inventory', inventory);
     });
   };
 }

@@ -3,9 +3,9 @@ let currentPlayerId = null;
 let currentRoom = null;
 
 function initSocket(token) {
-  // In development, connect to localhost:3002. In production, connect to the same host.
+  // In development, connect to localhost:8080. In production, connect to the same host.
   const serverUrl = window.location.hostname === 'localhost'
-    ? 'http://localhost:3002'
+    ? 'http://localhost:8080'
     : window.location.origin;
 
   socket = io(serverUrl, {
@@ -33,10 +33,12 @@ function initSocket(token) {
   socket.on('player_joined', (data) => {
     currentPlayerId = data.playerId;
     currentRoom = data.roomId;
-    updateUI('playerId', data.playerId);
+    updateUI('playerId', String(data.playerId));
     updateUI('roomId', data.roomId);
     console.log('Joined room:', data.roomId, 'as player:', data.playerId);
   });
+
+  // Auto-join room when connected
 
   socket.on('players_in_room', (players) => {
     console.log('Players in room:', players);
@@ -65,6 +67,26 @@ function initSocket(token) {
     console.error('Socket error:', message);
     alert('Error: ' + message);
   });
+
+  socket.on('plinko_result', (result) => {
+    if (window.onPlinkoResult) window.onPlinkoResult(result);
+  });
+
+  socket.on('wheel_result', (result) => {
+    if (window.onWheelResult) window.onWheelResult(result);
+  });
+
+  socket.on('shop_items', (items) => {
+    if (window.onShopItems) window.onShopItems(items);
+  });
+
+  socket.on('purchase_result', (result) => {
+    if (window.onPurchaseResult) window.onPurchaseResult(result);
+  });
+
+  socket.on('inventory', (inventory) => {
+    if (window.onInventory) window.onInventory(inventory);
+  });
 }
 
 function updateUI(id, value) {
@@ -82,7 +104,7 @@ function login() {
   const password = document.getElementById('password').value;
 
   const apiUrl = window.location.hostname === 'localhost'
-    ? 'http://localhost:3002'
+    ? 'http://localhost:8080'
     : window.location.origin;
 
   fetch(apiUrl + '/auth/login', {
@@ -108,7 +130,7 @@ function register() {
   const password = document.getElementById('password').value;
 
   const apiUrl = window.location.hostname === 'localhost'
-    ? 'http://localhost:3002'
+    ? 'http://localhost:8080'
     : window.location.origin;
 
   fetch(apiUrl + '/auth/register', {

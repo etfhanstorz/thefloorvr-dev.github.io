@@ -39,17 +39,38 @@ function init() {
   vrButton.style.cssText = 'position: absolute; bottom: 20px; right: 20px; padding: 10px 20px; background: #ff6600; color: white; border: none; border-radius: 5px; cursor: pointer; z-index: 100; font-size: 16px;';
   document.body.appendChild(vrButton);
 
-  // Blackjack Button
+  // Game Buttons
+  const gameButtonsDiv = document.createElement('div');
+  gameButtonsDiv.style.cssText = 'position: absolute; bottom: 60px; right: 20px; display: flex; flex-direction: column; gap: 5px; z-index: 100;';
+
   const blackjackBtn = document.createElement('button');
   blackjackBtn.innerHTML = '♠️ Blackjack';
-  blackjackBtn.style.cssText = 'position: absolute; bottom: 60px; right: 20px; padding: 10px 20px; background: #00aa00; color: white; border: none; border-radius: 5px; cursor: pointer; z-index: 100; font-size: 14px;';
+  blackjackBtn.style.cssText = 'padding: 10px 15px; background: #00aa00; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 12px;';
   blackjackBtn.addEventListener('click', () => {
     showBlackjack();
-    if (socket && socket.connected) {
-      socket.emit('join_blackjack');
-    }
+    if (socket && socket.connected) socket.emit('join_blackjack');
   });
-  document.body.appendChild(blackjackBtn);
+  gameButtonsDiv.appendChild(blackjackBtn);
+
+  const plinkoBtn = document.createElement('button');
+  plinkoBtn.innerHTML = '🎯 Plinko';
+  plinkoBtn.style.cssText = 'padding: 10px 15px; background: #00ff00; color: black; border: none; border-radius: 5px; cursor: pointer; font-size: 12px;';
+  plinkoBtn.addEventListener('click', showPlinko);
+  gameButtonsDiv.appendChild(plinkoBtn);
+
+  const wheelBtn = document.createElement('button');
+  wheelBtn.innerHTML = '🎡 Wheel';
+  wheelBtn.style.cssText = 'padding: 10px 15px; background: #ffff00; color: black; border: none; border-radius: 5px; cursor: pointer; font-size: 12px;';
+  wheelBtn.addEventListener('click', showWheel);
+  gameButtonsDiv.appendChild(wheelBtn);
+
+  const shopBtn = document.createElement('button');
+  shopBtn.innerHTML = '🛍️ Shop';
+  shopBtn.style.cssText = 'padding: 10px 15px; background: #ff6600; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 12px;';
+  shopBtn.addEventListener('click', showShop);
+  gameButtonsDiv.appendChild(shopBtn);
+
+  document.body.appendChild(gameButtonsDiv);
 
   vrButton.addEventListener('click', async () => {
     if (!isVR && navigator.xr) {
