@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Floor VR</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+    canvas { display: block; }
+    #ui {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: white;
+      background: rgba(0,0,0,0.7);
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 14px;
+      z-index: 10;
+    }
+    #players { margin-top: 10px; }
+    .player-item { margin: 5px 0; }
+    input { padding: 5px; margin: 5px 0; }
+    button { padding: 8px 12px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+    #loginScreen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); padding: 30px; border-radius: 10px; text-align: center; color: white; z-index: 100; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="loginScreen">
+    <h1>The Floor VR</h1>
+    <input type="text" id="username" placeholder="Username" />
+    <br />
+    <input type="password" id="password" placeholder="Password" />
+    <br />
+    <button onclick="doLogin()">Login</button>
+    <button onclick="doRegister()">Register</button>
+  </div>
+
+  <script>
+    const doLoginFn = () => {
+      const u = document.getElementById('username').value;
+      const p = document.getElementById('password').value;
+      if (!u || !p) { alert('Enter username and password'); return; }
+      if (localStorage.getItem('floorVrBanned') === 'true') { alert('Banned'); return; }
+      window.currentUsername = u;
+      window.currentPlayerId = 'local-' + u;
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('ui').classList.remove('hidden');
+      window.initializeGame && window.initializeGame();
+      setTimeout(() => window.initGameScene && window.initGameScene(), 100);
+    };
+    window.login = doLoginFn;
+    window.register = doLoginFn;
+    window.doLogin = doLoginFn;
+    window.doRegister = doLoginFn;
+  </script>
+
+  <div id="ui" class="hidden">
+    <div>Connected: <span id="status">No</span></div>
+    <div>Room: <span id="roomId">-</span></div>
+    <div>Your ID: <span id="playerId">-</span></div>
+    <div id="players">
+      <strong>Players in room:</strong>
+      <div id="playerList"></div>
+    </div>
+    <br />
+    <button id="voiceBtn" onclick="toggleVoice()" style="background: #00aa00;">Enable Voice</button>
+    <button id="muteBtn" onclick="toggleMute()" style="background: #666666; margin-left: 5px;">🔊</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://unpkg.com/mqtt@5.3.5/dist/mqtt.min.js"></script>
+  <script src="https://download.agora.io/sdk/release/AgoraRTC_N-latest.js"></script>
+
+  <script src="src/audio.js"></script>
+  <script src="src/player-data.js"></script>
+  <script src="src/socket-client.js"></script>
+  <script src="src/peerjs-client.js"></script>
+  <script src="src/mqtt-client.js"></script>
+  <script src="src/floor.js"></script>
+  <script src="src/player-avatar.js"></script>
+  <script src="src/voice.js"></script>
+  <script src="src/vr-hands.js"></script>
+  <script src="src/vr-games.js"></script>
+  <script src="src/games/blackjack.js"></script>
+  <script src="src/games/plinko.js"></script>
+  <script src="src/games/wheel.js"></script>
+  <script src="src/games/shop.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>
