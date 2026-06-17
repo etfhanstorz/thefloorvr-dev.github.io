@@ -1,10 +1,8 @@
+// Main game initialization
 let scene, camera, renderer, localAvatar;
 let keys = {};
-let moveUpdateTimer = 0;
 let xrSession = null;
 let isVR = false;
-let xrRefSpace = null;
-let controllerLeft = null, controllerRight = null;
 
 function init() {
   // Scene
