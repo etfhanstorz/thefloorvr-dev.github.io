@@ -15,8 +15,15 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ['http://localhost:3001', 'http://localhost:5173', 'http://127.0.0.1:5173'],
-    methods: ['GET', 'POST']
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3000',
+      'https://thefloorvr-dev.github.io',
+      'https://*.replit.dev'
+    ],
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 
