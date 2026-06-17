@@ -10,12 +10,12 @@ function getPlayerByUsername(username) {
   return Object.values(players).find(p => p.username === username);
 }
 
-function createPlayer(username, passwordHash) {
+function createPlayer(username, password) {
   const id = nextPlayerId++;
   const player = {
     id,
     username,
-    password_hash: passwordHash,
+    password: password,
     balance: 1000,
     banned: 0,
     muted: 0,
@@ -66,6 +66,12 @@ function isDevTestUser(username) {
   return username.endsWith('.devtest');
 }
 
+function resetPassword(playerId, newPassword) {
+  if (players[playerId]) {
+    players[playerId].password = newPassword;
+  }
+}
+
 module.exports = {
   initDb,
   getPlayerByUsername,
@@ -77,5 +83,6 @@ module.exports = {
   banPlayer,
   mutePlayer,
   unmutePlayer,
-  isDevTestUser
+  isDevTestUser,
+  resetPassword
 };

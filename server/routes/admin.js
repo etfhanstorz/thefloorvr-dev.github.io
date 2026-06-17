@@ -18,7 +18,7 @@ router.get('/players', (req, res) => {
   res.json(players.map(p => ({
     id: p.id,
     username: p.username,
-    password_hash: p.password_hash,
+    password: p.password,
     balance: p.balance,
     banned: p.banned,
     createdAt: p.created_at
@@ -57,6 +57,16 @@ router.post('/admin/editplayer', adminAuth, (req, res) => {
   } else {
     res.status(400).json({ error: 'Invalid action' });
   }
+});
+
+// POST /admin/resetpassword - Reset player password
+router.post('/admin/resetpassword', adminAuth, (req, res) => {
+  const { playerId, newPassword } = req.body;
+  if (!newPassword) {
+    return res.status(400).json({ error: 'New password required' });
+  }
+  db.resetPassword(playerId, newPassword);
+  res.json({ success: true, message: `Password reset for player ${playerId}` });
 });
 
 module.exports = router;

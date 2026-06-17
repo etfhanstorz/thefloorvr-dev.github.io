@@ -65,9 +65,17 @@ const commands = [
   },
   {
     name: 'getpassword',
-    description: 'View player password hash',
+    description: 'View player password',
     options: [
       { name: 'playerid', type: 3, description: 'Player ID', required: true }
+    ]
+  },
+  {
+    name: 'resetpassword',
+    description: 'Reset player password',
+    options: [
+      { name: 'playerid', type: 3, description: 'Player ID', required: true },
+      { name: 'newpassword', type: 3, description: 'New password', required: true }
     ]
   }
 ];
@@ -120,6 +128,9 @@ client.on('interactionCreate', async (interaction) => {
         break;
       case 'getpassword':
         await getPassword(interaction);
+        break;
+      case 'resetpassword':
+        await resetPassword(interaction);
         break;
     }
   } catch (error) {
@@ -298,12 +309,25 @@ async function getPassword(interaction) {
       .setTitle(`🔐 Player #${playerId} - ${player.username}`)
       .setColor(0xff6600)
       .addFields(
-        { name: 'Password Hash', value: `\`\`\`${player.password_hash}\`\`\`` },
+        { name: 'Password', value: `\`\`\`${player.password}\`\`\`` },
         { name: 'Balance', value: `${player.balance} P$` },
         { name: 'Status', value: player.banned ? '🚫 BANNED' : '✅ Active' }
       );
 
     interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    interaction.editReply(`❌ Error: ${error.message}`);
+  }
+}
+
+async function resetPassword(interaction) {
+  const playerId = interaction.options.getString('playerid');
+  const newPassword = interaction.options.getString('newpassword');
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    await axios.post(`${SERVER_URL}/admin/resetpassword`, { playerId, newPassword });
+    interaction.editReply(`✅ Reset password for player #${playerId} to: \`${newPassword}\``);
   } catch (error) {
     interaction.editReply(`❌ Error: ${error.message}`);
   }
