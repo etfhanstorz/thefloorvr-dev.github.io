@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const OWNER_ID = process.env.OWNER_ID;
-const MQTT_URL = process.env.MQTT_URL || 'wss://broker.emqx.io:8084/mqtt';
+const MQTT_URL = process.env.MQTT_URL || 'wss://broker.hivemq.com:8884/mqtt';
 const MQTT_TOPIC = 'thefloorvr/admin-events';
 const MQTT_QUERY = 'thefloorvr/admin-query';
 

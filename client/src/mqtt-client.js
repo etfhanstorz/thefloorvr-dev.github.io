@@ -1,7 +1,9 @@
 // MQTT client for Discord admin events
-// Connects to public MQTT broker (emqx.io) and listens for admin commands
+// Connects to a public MQTT broker and listens for admin commands.
+// HiveMQ's public broker is anonymous + reliable (emqx.io was refusing with
+// "Not authorized" under load).
 
-const MQTT_URL = 'wss://broker.emqx.io:8084/mqtt';
+const MQTT_URL = 'wss://broker.hivemq.com:8884/mqtt';
 const MQTT_TOPIC = 'thefloorvr/admin-events';
 
 let mqttClient = null;
@@ -31,9 +33,10 @@ async function initMqtt() {
     }
 
     mqttClient = mqtt.connect(MQTT_URL, {
-      clientId: initDeviceId(),
+      // unique per connection so two tabs / reconnects never collide
+      clientId: 'floorvr-' + initDeviceId() + '-' + Math.random().toString(16).slice(2, 8),
       clean: true,
-      reconnectPeriod: 1000,
+      reconnectPeriod: 4000,
     });
 
     mqttClient.on('connect', () => {
