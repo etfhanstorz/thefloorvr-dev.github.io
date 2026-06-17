@@ -3,6 +3,8 @@ let keys = {};
 let moveUpdateTimer = 0;
 let xrSession = null;
 let isVR = false;
+let xrRefSpace = null;
+let controllerLeft = null, controllerRight = null;
 
 function init() {
   // Scene
@@ -76,13 +78,28 @@ function init() {
     if (!isVR && navigator.xr) {
       try {
         const session = await navigator.xr.requestSession('immersive-vr', {
-          requiredFeatures: ['local-floor'],
+          requiredFeatures: ['local-floor', 'hand-tracking'],
           optionalFeatures: ['dom-overlay'],
           domOverlay: { root: document.body }
         });
         xrSession = session;
         isVR = true;
         vrButton.innerHTML = 'Exit VR';
+
+        // Get reference space for hand tracking
+        xrRefSpace = await session.requestReferenceSpace('local-floor');
+
+        // Initialize VR hands and game boards
+        initVRHands(session, null);
+        createBlackjackBoard(scene);
+        createPlinkoBoard(scene);
+        createWheelBoard(scene);
+        createShopBoard(scene);
+
+        // Create controller models
+        controllerLeft = createControllerModel(scene, 'left');
+        controllerRight = createControllerModel(scene, 'right');
+
         renderer.xr.setSession(session);
       } catch (e) {
         console.error('VR not available:', e);
@@ -133,7 +150,12 @@ function init() {
   animate();
 }
 
-function animate() {
+function animate(time, xrFrame) {
+  if (isVR && xrFrame) {
+    // Update hand controllers in VR
+    updateControllers(xrFrame, xrRefSpace);
+  }
+
   if (isVR) {
     renderer.xr.getSession().requestAnimationFrame(animate);
   } else {
@@ -157,7 +179,7 @@ function animate() {
       camera.position.z = localAvatar.position.z + 5;
       camera.lookAt(localAvatar.position.x, 1.5, localAvatar.position.z);
     } else {
-      // VR: sync avatar to camera position
+      // VR: sync avatar to camera position (camera is player head)
       const cameraPos = camera.position;
       localAvatar.setPosition(cameraPos.x, 0, cameraPos.z);
     }
