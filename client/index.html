@@ -45,14 +45,18 @@
       <strong>Players in room:</strong>
       <div id="playerList"></div>
     </div>
+    <br />
+    <button id="voiceBtn" onclick="toggleVoice()" style="background: #00aa00;">Enable Voice</button>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="https://download.agora.io/sdk/release/AgoraRTC_N-latest.js"></script>
 
   <script src="src/socket-client.js"></script>
   <script src="src/floor.js"></script>
   <script src="src/player-avatar.js"></script>
+  <script src="src/voice.js"></script>
   <script src="src/main.js"></script>
 </body>
 </html>

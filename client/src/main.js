@@ -135,9 +135,25 @@ function animate() {
       broadcastPosition(localAvatar.position.x, 0, localAvatar.position.z);
       moveUpdateTimer = 0;
     }
+
+    // Update voice chat volumes based on distance
+    updateVoiceVolumes(localAvatar.position, avatars);
   }
 
   renderer.render(scene, camera);
+}
+
+function toggleVoice() {
+  const btn = document.getElementById('voiceBtn');
+  if (!voiceEnabled && currentPlayerId) {
+    initVoiceChat(currentPlayerId, document.getElementById('username').value);
+    btn.innerHTML = 'Disable Voice';
+    btn.style.background = '#ff4444';
+  } else if (voiceEnabled) {
+    leaveVoiceChat();
+    btn.innerHTML = 'Enable Voice';
+    btn.style.background = '#00aa00';
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
