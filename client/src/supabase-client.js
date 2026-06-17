@@ -24,8 +24,12 @@ window.sbActive = false;
   }
 })();
 
+// Supabase validates the email domain, so we base the synthetic address on a real
+// domain (gmail) with a floorvr. prefix. No email is ever sent (confirmations off);
+// this is purely an internal unique key derived from the username.
 function emailFor(username) {
-  return username.toLowerCase().replace(/[^a-z0-9._-]/g, '_') + '@floorvrcasino.com';
+  const u = username.toLowerCase().replace(/[^a-z0-9._-]/g, '_').replace(/^[.]+|[.]+$/g, '');
+  return 'floorvr.' + u + '@gmail.com';
 }
 
 function loginError(msg) {
