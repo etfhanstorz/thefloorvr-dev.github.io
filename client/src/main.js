@@ -13,6 +13,8 @@ let yaw = 0, pitch = 0;        // desktop mouse-look (radians)
 let pointerLocked = false;
 let lastFrameTime = 0;
 let snapTurnArmed = true;      // debounce for VR snap turn
+let thirdPerson = false;       // desktop camera mode (C to toggle)
+const TP_DIST = 4.0, TP_HEIGHT = 1.2;
 
 const WALK_SPEED = 4.0;        // metres / second
 const SPRINT_SPEED = 8.0;
@@ -47,7 +49,13 @@ function init() {
   scene.add(playerRig);
 
   // Keyboard
-  document.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
+  document.addEventListener('keydown', (e) => {
+    keys[e.key.toLowerCase()] = true;
+    // third-person is a dev-only PC tool (keyboard, non-VR, .devtest accounts)
+    if (e.key.toLowerCase() === 'c' && !e.repeat && !isVR && isDevAccount()) {
+      thirdPerson = !thirdPerson;
+    }
+  });
   document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -129,8 +137,6 @@ function setupMouseLook() {
   });
   document.addEventListener('pointerlockchange', () => {
     pointerLocked = (document.pointerLockElement === canvas);
-    const hint = document.getElementById('lookHint');
-    if (hint) hint.style.display = pointerLocked ? 'none' : 'block';
   });
   document.addEventListener('mousemove', (e) => {
     if (!pointerLocked || isVR) return;
@@ -158,12 +164,6 @@ function buildHUD() {
   crosshair.id = 'crosshair';
   crosshair.style.cssText = 'position:absolute; top:50%; left:50%; width:6px; height:6px; margin:-3px 0 0 -3px; background:rgba(255,255,255,0.6); border-radius:50%; z-index:55; pointer-events:none;';
   document.body.appendChild(crosshair);
-
-  const hint = document.createElement('div');
-  hint.id = 'lookHint';
-  hint.style.cssText = 'position:absolute; top:50%; left:50%; transform:translate(-50%,40px); color:white; background:rgba(0,0,0,0.6); padding:6px 12px; border-radius:6px; font-family:Arial; font-size:13px; z-index:55; pointer-events:none;';
-  hint.textContent = 'Click to look · WASD move · Shift sprint · Esc release';
-  document.body.appendChild(hint);
 }
 
 function updateHUD() {
@@ -188,15 +188,22 @@ function animate(time, xrFrame) {
     desktopMovement(dt);
   }
 
-  // Keep the local avatar under the player's head position
+  // Keep the local avatar at the player's ground position.
+  // VR: headset world position. Desktop: the rig (camera may be offset in 3rd person).
   if (localAvatar) {
-    const head = new THREE.Vector3();
-    camera.getWorldPosition(head);
-    localAvatar.setPosition(head.x, 0, head.z);
+    let px, pz;
+    if (isVR) {
+      const head = new THREE.Vector3();
+      camera.getWorldPosition(head);
+      px = head.x; pz = head.z;
+    } else {
+      px = playerRig.position.x; pz = playerRig.position.z;
+    }
+    localAvatar.setPosition(px, 0, pz);
 
     moveUpdateTimer++;
     if (moveUpdateTimer > 6) {
-      broadcastPosition(head.x, 0, head.z);
+      broadcastPosition(px, 0, pz);
       moveUpdateTimer = 0;
     }
     if (typeof updateVoiceVolumes === 'function') updateVoiceVolumes(localAvatar.position, avatars);
@@ -230,7 +237,13 @@ function desktopMovement(dt) {
     playerRig.position.x = clamp(playerRig.position.x + move.x, -BOUND, BOUND);
     playerRig.position.z = clamp(playerRig.position.z + move.z, -BOUND, BOUND);
   }
-  camera.position.set(0, EYE_HEIGHT, 0); // camera fixed in rig; rig carries position
+
+  if (thirdPerson) {
+    // camera sits behind + above the player, still looking forward (yaw/pitch)
+    camera.position.set(Math.sin(yaw) * TP_DIST, EYE_HEIGHT + TP_HEIGHT, Math.cos(yaw) * TP_DIST);
+  } else {
+    camera.position.set(0, EYE_HEIGHT, 0); // first person: rig carries position
+  }
 }
 
 function vrLocomotion(dt) {
@@ -271,6 +284,11 @@ function vrLocomotion(dt) {
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function isDevAccount() {
+  const u = (window.currentUsername || (document.getElementById('username') && document.getElementById('username').value) || '');
+  return u.endsWith('.devtest');
+}
 
 function toggleVoice() {
   const btn = document.getElementById('voiceBtn');
