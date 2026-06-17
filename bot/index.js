@@ -1,6 +1,14 @@
 const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
+const https = require('https');
 require('dotenv').config();
+
+// Disable SSL verification for localhost
+const agent = new https.Agent({
+  rejectUnauthorized: false
+});
+axios.defaults.httpAgent = agent;
+axios.defaults.httpsAgent = agent;
 
 const BOT_TOKEN = process.env.DISCORD_TOKEN;
 const OWNER_ID = process.env.OWNER_ID;
