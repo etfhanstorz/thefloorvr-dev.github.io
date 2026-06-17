@@ -113,6 +113,9 @@ function init() {
         // Tracked controllers + laser pointers (aim trigger at a stand to open it)
         setupVRControllers();
 
+        // In-world, controller-clickable game panels (bet/play/result)
+        if (window.buildVRGamePanels) buildVRGamePanels(scene);
+
         session.addEventListener('end', () => { isVR = false; vrButton.innerHTML = 'Enter VR'; });
         renderer.xr.setSession(session);
       } catch (e) {
@@ -324,16 +327,25 @@ function makeControllerMesh() {
 }
 
 function onVRSelect(e) {
-  if (typeof gameBoards === 'undefined') return;
   const controller = e.target;
   vrTmpMatrix.identity().extractRotation(controller.matrixWorld);
   vrRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
   vrRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(vrTmpMatrix);
 
-  const targets = Object.values(gameBoards);
-  const hits = vrRaycaster.intersectObjects(targets, true);
-  if (!hits.length) return;
+  // 1) in-world game buttons (bet / play / result) take priority
+  if (window.vrInteractables && window.vrInteractables.length) {
+    const btnHits = vrRaycaster.intersectObjects(window.vrInteractables, false);
+    if (btnHits.length) {
+      const btn = btnHits[0].object;
+      if (btn.userData && typeof btn.userData.onSelect === 'function') btn.userData.onSelect();
+      return;
+    }
+  }
 
+  // 2) otherwise, pointing at a game stand opens its overlay
+  if (typeof gameBoards === 'undefined') return;
+  const hits = vrRaycaster.intersectObjects(Object.values(gameBoards), true);
+  if (!hits.length) return;
   let o = hits[0].object;
   while (o && !(o.userData && o.userData.game)) o = o.parent;
   if (o && o.userData.game) openGame(o.userData.game);
