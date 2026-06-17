@@ -7,22 +7,48 @@ class PlayerAvatar {
 
     const group = new THREE.Group();
 
-    // Body capsule
-    const bodyGeometry = new THREE.CapsuleGeometry(0.4, 1.5, 4, 8);
+    // Body capsule with better materials
+    const bodyGeometry = new THREE.CapsuleGeometry(0.4, 1.5, 8, 16);
+    const bodyColor = isLocal ? 0x00ff00 : 0x0066ff;
     const bodyMaterial = new THREE.MeshStandardMaterial({
-      color: isLocal ? 0x00ff00 : 0x0066ff
+      color: bodyColor,
+      roughness: 0.4,
+      metalness: 0.2,
+      emissive: bodyColor,
+      emissiveIntensity: 0.2
     });
     this.body = new THREE.Mesh(bodyGeometry, bodyMaterial);
     this.body.castShadow = true;
+    this.body.receiveShadow = true;
     group.add(this.body);
 
-    // Head
-    const headGeometry = new THREE.SphereGeometry(0.3, 16, 16);
-    const headMaterial = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+    // Head with better geometry
+    const headGeometry = new THREE.SphereGeometry(0.35, 32, 32);
+    const headMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffdbac,
+      roughness: 0.5,
+      metalness: 0.0
+    });
     this.head = new THREE.Mesh(headGeometry, headMaterial);
     this.head.position.y = 1.2;
     this.head.castShadow = true;
+    this.head.receiveShadow = true;
     group.add(this.head);
+
+    // Eyes
+    const eyeGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+    const eyeMaterial = new THREE.MeshStandardMaterial({
+      color: isLocal ? 0x00aa00 : 0x0044ff,
+      emissive: isLocal ? 0x00aa00 : 0x0044ff,
+      emissiveIntensity: 0.5
+    });
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(-0.12, 1.35, 0.2);
+    group.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(0.12, 1.35, 0.2);
+    group.add(rightEye);
 
     // Nametag
     const canvas = document.createElement('canvas');
