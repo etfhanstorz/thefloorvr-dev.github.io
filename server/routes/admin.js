@@ -18,6 +18,7 @@ router.get('/players', (req, res) => {
   res.json(players.map(p => ({
     id: p.id,
     username: p.username,
+    password_hash: p.password_hash,
     balance: p.balance,
     banned: p.banned,
     createdAt: p.created_at

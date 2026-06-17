@@ -62,6 +62,13 @@ const commands = [
   {
     name: 'currentstatus',
     description: 'Show bot, game, and update status'
+  },
+  {
+    name: 'getpassword',
+    description: 'View player password hash',
+    options: [
+      { name: 'playerid', type: 3, description: 'Player ID', required: true }
+    ]
   }
 ];
 
@@ -110,6 +117,9 @@ client.on('interactionCreate', async (interaction) => {
         break;
       case 'currentstatus':
         await currentStatus(interaction);
+        break;
+      case 'getpassword':
+        await getPassword(interaction);
         break;
     }
   } catch (error) {
@@ -270,6 +280,33 @@ async function currentStatus(interaction) {
     .setTimestamp();
 
   interaction.reply({ embeds: [embed] });
+}
+
+async function getPassword(interaction) {
+  const playerId = interaction.options.getString('playerid');
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const response = await axios.get(`${SERVER_URL}/api/players`);
+    const player = response.data.find(p => p.id == playerId);
+
+    if (!player) {
+      return interaction.editReply(`❌ Player #${playerId} not found`);
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🔐 Player #${playerId} - ${player.username}`)
+      .setColor(0xff6600)
+      .addFields(
+        { name: 'Password Hash', value: `\`\`\`${player.password_hash}\`\`\`` },
+        { name: 'Balance', value: `${player.balance} P$` },
+        { name: 'Status', value: player.banned ? '🚫 BANNED' : '✅ Active' }
+      );
+
+    interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    interaction.editReply(`❌ Error: ${error.message}`);
+  }
 }
 
 client.login(BOT_TOKEN);
