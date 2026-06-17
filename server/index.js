@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 
 const authRoutes = require('./routes/auth');
+const adminRoutes = require('./routes/admin');
 const { handleSocketConnection } = require('./socket/rooms');
 const db = require('./db/database');
 
@@ -27,6 +28,8 @@ app.use(express.json());
 
 // Routes
 app.use('/auth', authRoutes);
+app.use('/api', adminRoutes);
+app.use('/admin', adminRoutes);
 
 // Serve client
 app.use(express.static(path.join(__dirname, '../client')));
