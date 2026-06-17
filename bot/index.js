@@ -21,7 +21,9 @@ const commands = [
     name: 'editplayer',
     description: 'Edit player: ban, mute voice, add/remove P$, edit inventory',
     options: [
-      { name: 'playerid', type: 3, description: 'Player ID', required: true }
+      { name: 'playerid', type: 3, description: 'Player ID', required: true },
+      { name: 'action', type: 3, description: 'ban, mute, balance, or inventory', required: true },
+      { name: 'value', type: 3, description: 'yes (for ban/mute), +/-amount (for balance)', required: false }
     ]
   },
   {
@@ -151,20 +153,36 @@ async function listPlayers(interaction) {
 
 async function editPlayer(interaction) {
   const playerId = interaction.options.getString('playerid');
+  const action = interaction.options.getString('action');
+  const value = interaction.options.getString('value');
 
-  const embed = new EmbedBuilder()
-    .setTitle(`⚙️ Edit Player #${playerId}`)
-    .setColor(0xff6600)
-    .addFields(
-      { name: 'Ban Player', value: '`/editplayer ' + playerId + ' ban yes`' },
-      { name: 'Mute Voice', value: '`/editplayer ' + playerId + ' mute yes`' },
-      { name: 'Add P$', value: '`/editplayer ' + playerId + ' balance +100`' },
-      { name: 'Remove P$', value: '`/editplayer ' + playerId + ' balance -100`' },
-      { name: 'View Inventory', value: '`/editplayer ' + playerId + ' inventory`' }
-    )
-    .setDescription('Run the command shown above with the action you want');
+  await interaction.deferReply();
 
-  interaction.reply({ embeds: [embed], ephemeral: true });
+  try {
+    if (action === 'ban') {
+      await axios.post(`${SERVER_URL}/admin/editplayer`, { playerId, action: 'ban' });
+      interaction.editReply(`✅ Player #${playerId} has been banned`);
+    } else if (action === 'mute') {
+      await axios.post(`${SERVER_URL}/admin/editplayer`, { playerId, action: 'mute' });
+      interaction.editReply(`🔇 Player #${playerId} voice chat muted (can still hear)`);
+    } else if (action === 'balance') {
+      const amount = parseInt(value);
+      if (isNaN(amount)) {
+        return interaction.editReply('❌ Balance must be a number (e.g., +100 or -50)');
+      }
+      await axios.post(`${SERVER_URL}/admin/editplayer`, { playerId, action: 'balance', value: amount });
+      interaction.editReply(`💰 Player #${playerId} balance adjusted by ${amount} P$`);
+    } else if (action === 'inventory') {
+      const player = await axios.get(`${SERVER_URL}/api/players`);
+      const p = player.data.find(x => x.id == playerId);
+      if (!p) return interaction.editReply('❌ Player not found');
+      interaction.editReply(`📦 Player #${playerId} inventory: ${p.inventory?.join(', ') || 'Empty'}`);
+    } else {
+      interaction.editReply('❌ Invalid action. Use: ban, mute, balance, or inventory');
+    }
+  } catch (error) {
+    interaction.editReply(`❌ Error: ${error.message}`);
+  }
 }
 
 async function shutdownServer(interaction) {
