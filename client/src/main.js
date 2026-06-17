@@ -290,6 +290,9 @@ function setupVRControllers() {
   vrRaycaster = new THREE.Raycaster();
   vrTmpMatrix = new THREE.Matrix4();
 
+  // Real controller models (auto-loads the GLTF matching the headset's controllers)
+  const factory = THREE.XRControllerModelFactory ? new THREE.XRControllerModelFactory() : null;
+
   for (let i = 0; i < 2; i++) {
     const ctrl = renderer.xr.getController(i);
     ctrl.addEventListener('selectstart', onVRSelect);
@@ -297,7 +300,7 @@ function setupVRControllers() {
     playerRig.add(ctrl);
 
     const grip = renderer.xr.getControllerGrip(i);
-    grip.add(makeControllerMesh());
+    grip.add(factory ? factory.createControllerModel(grip) : makeControllerMesh());
     playerRig.add(grip);
   }
 }
