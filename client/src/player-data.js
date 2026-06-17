@@ -21,6 +21,9 @@ window.currentPlayer = defaultPlayer();
 const MAX_UPGRADE_LEVEL = 5;
 
 function loadPlayerData() {
+  // Cloud session already loaded the player from Supabase — don't overwrite it.
+  if (window.sbActive) return;
+
   const username = document.getElementById('username')?.value;
   if (!username) return;
 
@@ -51,7 +54,10 @@ function loadPlayerData() {
 function savePlayerData() {
   const username = window.currentPlayer.username;
   if (!username) return;
+  // local cache (offline / fallback)
   localStorage.setItem(`player-${username}`, JSON.stringify(window.currentPlayer));
+  // cloud save when signed in via Supabase
+  if (window.sbSavePlayer) window.sbSavePlayer();
   clearTimeout(saveTimeout);
   saveTimeout = setTimeout(savePlayerData, SAVE_INTERVAL);
 }

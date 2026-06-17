@@ -86,29 +86,33 @@
       <div class="login-sub">V R&nbsp;&nbsp;C A S I N O</div>
       <input type="text" id="username" placeholder="Username" autocomplete="off" />
       <input type="password" id="password" placeholder="Password" />
-      <button class="btn-primary" onclick="doLogin()">Enter the Floor</button>
-      <button class="btn-secondary" onclick="doRegister()">Create Account</button>
+      <div id="loginError" style="display:none; color:#ff6b6b; font-size:13px; margin:4px 0 0;"></div>
+      <button class="btn-primary" id="btnLogin" onclick="doLogin()">Enter the Floor</button>
+      <button class="btn-secondary" id="btnRegister" onclick="doRegister()">Create Account</button>
       <div class="login-hint">FREE-PLAY CHIPS · NO REAL MONEY</div>
     </div>
   </div>
 
   <script>
-    const doLoginFn = () => {
+    // Buttons delegate to the Supabase auth handler (supabase-client.js).
+    // If that didn't load, fall back to a local-only entry.
+    function localFallback() {
       const u = document.getElementById('username').value;
       const p = document.getElementById('password').value;
-      if (!u || !p) { alert('Enter username and password'); return; }
-      if (localStorage.getItem('floorVrBanned') === 'true') { alert('Banned'); return; }
+      if (!u || !p) { const e = document.getElementById('loginError'); if (e) { e.textContent = 'Enter a username and password.'; e.style.display = 'block'; } return; }
       window.currentUsername = u;
       window.currentPlayerId = 'local-' + u;
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('ui').classList.remove('hidden');
       window.initializeGame && window.initializeGame();
       setTimeout(() => window.initGameScene && window.initGameScene(), 100);
-    };
-    window.login = doLoginFn;
-    window.register = doLoginFn;
-    window.doLogin = doLoginFn;
-    window.doRegister = doLoginFn;
+    }
+    function doLogin() { if (window.handleAuth) window.handleAuth('login'); else localFallback(); }
+    function doRegister() { if (window.handleAuth) window.handleAuth('register'); else localFallback(); }
+    // Enter key submits (login)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !document.getElementById('loginScreen').classList.contains('hidden')) doLogin();
+    });
   </script>
 
   <div id="ui" class="hidden">
@@ -130,24 +134,26 @@
   <script src="https://unpkg.com/three@0.128.0/examples/js/webxr/XRControllerModelFactory.js"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://unpkg.com/mqtt@5.3.5/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://download.agora.io/sdk/release/AgoraRTC_N-latest.js"></script>
 
-  <script src="src/audio.js?v=21"></script>
-  <script src="src/player-data.js?v=21"></script>
-  <script src="src/player-avatar.js?v=21"></script>
-  <script src="src/floor.js?v=21"></script>
-  <script src="src/decor.js?v=21"></script>
-  <script src="src/voice.js?v=21"></script>
-  <script src="src/vr-hands.js?v=21"></script>
-  <script src="src/vr-games.js?v=21"></script>
-  <script src="src/peerjs-client.js?v=21"></script>
-  <script src="src/mqtt-client.js?v=21"></script>
-  <script src="src/socket-client.js?v=21"></script>
-  <script src="src/games/blackjack.js?v=21"></script>
-  <script src="src/games/plinko.js?v=21"></script>
-  <script src="src/games/wheel.js?v=21"></script>
-  <script src="src/games/shop.js?v=21"></script>
-  <script src="src/vr-ui.js?v=21"></script>
-  <script src="src/main.js?v=21"></script>
+  <script src="src/audio.js?v=22"></script>
+  <script src="src/player-data.js?v=22"></script>
+  <script src="src/supabase-client.js?v=22"></script>
+  <script src="src/player-avatar.js?v=22"></script>
+  <script src="src/floor.js?v=22"></script>
+  <script src="src/decor.js?v=22"></script>
+  <script src="src/voice.js?v=22"></script>
+  <script src="src/vr-hands.js?v=22"></script>
+  <script src="src/vr-games.js?v=22"></script>
+  <script src="src/peerjs-client.js?v=22"></script>
+  <script src="src/mqtt-client.js?v=22"></script>
+  <script src="src/socket-client.js?v=22"></script>
+  <script src="src/games/blackjack.js?v=22"></script>
+  <script src="src/games/plinko.js?v=22"></script>
+  <script src="src/games/wheel.js?v=22"></script>
+  <script src="src/games/shop.js?v=22"></script>
+  <script src="src/vr-ui.js?v=22"></script>
+  <script src="src/main.js?v=22"></script>
 </body>
 </html>
