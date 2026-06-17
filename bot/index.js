@@ -129,12 +129,18 @@ const commands = [
 
 async function registerCommands() {
   try {
-    const rest = new (require('discord.js')).REST({ version: '10' }).setToken(DISCORD_TOKEN);
-    await rest.put(
-      require('discord.js').Routes.applicationCommands(client.user.id),
-      { body: commands }
-    );
-    console.log('✓ Slash commands registered');
+    const { REST, Routes } = require('discord.js');
+    const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
+    const guildId = process.env.GUILD_ID;
+    if (guildId) {
+      // guild-scoped commands appear INSTANTLY (great for dev)
+      await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: commands });
+      console.log(`✓ Slash commands registered to guild ${guildId} (instant)`);
+    } else {
+      // global commands can take up to ~1 hour to appear
+      await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
+      console.log('✓ Slash commands registered globally (may take up to ~1h to appear)');
+    }
   } catch (e) {
     console.error('Failed to register commands:', e);
   }
