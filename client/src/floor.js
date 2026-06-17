@@ -90,10 +90,10 @@ function createCasinoFloor(scene) {
 
     // Add glowing screen effect
     const screenGeo = new THREE.PlaneGeometry(1.8, 2);
+    // MeshBasicMaterial ignores lighting, so it already looks "lit"/glowing.
+    // emissive/emissiveIntensity aren't valid here (they belong on Standard).
     const screenMat = new THREE.MeshBasicMaterial({
-      color: 0x00ff00,
-      emissive: 0x00ff00,
-      emissiveIntensity: 0.8
+      color: 0x00ff00
     });
     const screen = new THREE.Mesh(screenGeo, screenMat);
     screen.position.set(-45, 2, -30 + i * 10 + 1.01);

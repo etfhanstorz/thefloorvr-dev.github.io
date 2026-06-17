@@ -7,8 +7,8 @@ class PlayerAvatar {
 
     const group = new THREE.Group();
 
-    // Body capsule with better materials
-    const bodyGeometry = new THREE.CapsuleGeometry(0.4, 1.5, 8, 16);
+    // Body (CapsuleGeometry needs three r142+; r128 only has Cylinder)
+    const bodyGeometry = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 16);
     const bodyColor = isLocal ? 0x00ff00 : 0x0066ff;
     const bodyMaterial = new THREE.MeshStandardMaterial({
       color: bodyColor,
