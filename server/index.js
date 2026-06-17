@@ -21,7 +21,7 @@ const io = socketIo(server, {
 });
 
 const SECRET = process.env.JWT_SECRET || 'dev-secret-key';
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 9000;
 
 // Middleware
 app.use(cors());

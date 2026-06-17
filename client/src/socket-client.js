@@ -3,9 +3,9 @@ let currentPlayerId = null;
 let currentRoom = null;
 
 function initSocket(token) {
-  // In development, connect to localhost:8080. In production, connect to the same host.
+  // In development, connect to localhost:9000. In production, connect to the same host.
   const serverUrl = window.location.hostname === 'localhost'
-    ? 'http://localhost:8080'
+    ? 'http://localhost:9000'
     : window.location.origin;
 
   socket = io(serverUrl, {
@@ -104,7 +104,7 @@ function login() {
   const password = document.getElementById('password').value;
 
   const apiUrl = window.location.hostname === 'localhost'
-    ? 'http://localhost:8080'
+    ? 'http://localhost:9000'
     : window.location.origin;
 
   fetch(apiUrl + '/auth/login', {
@@ -130,7 +130,7 @@ function register() {
   const password = document.getElementById('password').value;
 
   const apiUrl = window.location.hostname === 'localhost'
-    ? 'http://localhost:8080'
+    ? 'http://localhost:9000'
     : window.location.origin;
 
   fetch(apiUrl + '/auth/register', {
