@@ -17,7 +17,12 @@ const ROOT = path.resolve(__dirname, '..');
 const DEVLOG = path.join(ROOT, 'full v1.0.0 release to-do', 'devlogs (update every fix or update).txt');
 const WEBHOOK_FILE = path.join(ROOT, 'full v1.0.0 release to-do', 'webhook.txt');
 const IDS_FILE = path.join(ROOT, 'full v1.0.0 release to-do', '.devlog-messages.json');
+const VERSION_FILE = path.join(ROOT, 'full v1.0.0 release to-do', 'version.txt');
 const LIMIT = 1850; // leaves room for the code-fence + "Devlog x/N" wrapper
+
+function getVersion() {
+  try { return fs.readFileSync(VERSION_FILE, 'utf8').trim(); } catch { return '0.0.0'; }
+}
 
 function getWebhook() {
   if (process.env.DISCORD_WEBHOOK_URL) return process.env.DISCORD_WEBHOOK_URL.trim();
@@ -104,7 +109,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     } catch {}
   }
 
-  const text = fs.readFileSync(DEVLOG, 'utf8');
+  // prepend a version banner so it shows at the very top of part 1
+  const banner = `===== V ${getVersion()} =====\n\n`;
+  const text = banner + fs.readFileSync(DEVLOG, 'utf8');
   const parts = splitIntoParts(text, LIMIT);
   console.log(`Sending devlog in ${parts.length} part(s)...`);
 
