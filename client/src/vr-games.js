@@ -4,6 +4,15 @@
 
 let gameBoards = {};
 
+// place a station group at a zone: position on the floor + face the boulevard
+function placeStation(group, pos, face) {
+  pos = pos || { x: 0, z: -4 };
+  face = face || [0, 0, 1];
+  group.position.set(pos.x, 0, pos.z);
+  group.rotation.y = Math.atan2(face[0], face[2]); // local +z aligns with face
+  group.userData.faceDir = face;
+}
+
 // ---------- shared helpers ----------
 
 const MAT = {
@@ -46,9 +55,9 @@ function neonFrame(w, h, color) {
 
 // ---------- Blackjack: felt table ----------
 
-function createBlackjackBoard(scene) {
+function createBlackjackBoard(scene, pos, face) {
   const group = new THREE.Group();
-  group.position.set(-6, 0, -4);
+  placeStation(group, pos, face);
 
   // pedestal
   const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 0.95, 16), MAT.cabinet());
@@ -82,16 +91,16 @@ function createBlackjackBoard(scene) {
 
 // ---------- Plinko: tall pegboard cabinet ----------
 
-function createPlinkoBoard(scene) {
+function createPlinkoBoard(scene, pos, face) {
   const group = new THREE.Group();
-  group.position.set(-2, 0, -4);
+  placeStation(group, pos, face);
 
   // cabinet
   const cab = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.2, 0.3), MAT.cabinet());
   cab.position.y = 1.3; cab.castShadow = true; group.add(cab);
   // recessed dark play face
-  const face = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.6, 0.05), MAT.dark());
-  face.position.set(0, 1.45, 0.16); group.add(face);
+  const playFace = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.6, 0.05), MAT.dark());
+  playFace.position.set(0, 1.45, 0.16); group.add(playFace);
 
   // peg grid
   const pegMat = new THREE.MeshStandardMaterial({ color: 0xeeeeff, emissive: 0x334466, emissiveIntensity: 0.4, metalness: 0.5, roughness: 0.4 });
@@ -154,9 +163,9 @@ function wheelFaceTexture() {
   return tex;
 }
 
-function createWheelBoard(scene) {
+function createWheelBoard(scene, pos, face) {
   const group = new THREE.Group();
-  group.position.set(2, 0, -4);
+  placeStation(group, pos, face);
 
   // stand pole + base
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.6, 0.2, 20), MAT.cabinet());
@@ -190,9 +199,9 @@ function createWheelBoard(scene) {
 
 // ---------- Shop: glowing kiosk ----------
 
-function createShopBoard(scene) {
+function createShopBoard(scene, pos, face) {
   const group = new THREE.Group();
-  group.position.set(6, 0, -4);
+  placeStation(group, pos, face);
 
   // counter
   const counter = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 0.7), MAT.cabinet());

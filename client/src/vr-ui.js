@@ -88,10 +88,13 @@ function vrTitle(text, w, h, accent) {
   return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: vrTexture(text, accent, 'title'), transparent: true }));
 }
 
-function buildPanel(scene, game, boardPos, actionLabel, accent, onAction) {
+function buildPanel(scene, game, board, actionLabel, accent, onAction) {
   const panel = new THREE.Group();
-  // sit in front of the machine at a comfortable interaction height, facing player
-  panel.position.set(boardPos.x, 1.35, boardPos.z + 0.75);
+  const p = board.position;
+  const face = board.userData.faceDir || [0, 0, 1];
+  // sit in front of the machine (toward the boulevard/player), facing the player
+  panel.position.set(p.x + face[0] * 1.2, 1.35, p.z + face[2] * 1.2);
+  panel.rotation.y = Math.atan2(face[0], face[2]);
   scene.add(panel);
 
   // backing board
@@ -145,19 +148,19 @@ function buildVRGamePanels(scene) {
   vrPanelsBuilt = true;
 
   if (gameBoards.plinko) {
-    buildPanel(scene, 'plinko', gameBoards.plinko.position, 'PLAY', '#33ccff', () => {
+    buildPanel(scene, 'plinko', gameBoards.plinko, 'PLAY', '#33ccff', () => {
       if (window.playSoundIfNotMuted) playSoundIfNotMuted('plinko_drop');
       socket.emit('plinko_play', { betAmount: vrBet.plinko });
     });
   }
   if (gameBoards.wheel) {
-    buildPanel(scene, 'wheel', gameBoards.wheel.position, 'SPIN', '#ff33aa', () => {
+    buildPanel(scene, 'wheel', gameBoards.wheel, 'SPIN', '#ff33aa', () => {
       if (window.playSoundIfNotMuted) playSoundIfNotMuted('wheel_spin');
       socket.emit('wheel_spin', { baseAmount: vrBet.wheel });
     });
   }
   if (gameBoards.blackjack) {
-    buildPanel(scene, 'blackjack', gameBoards.blackjack.position, 'DEAL', '#ffd24a', () => {
+    buildPanel(scene, 'blackjack', gameBoards.blackjack, 'DEAL', '#ffd24a', () => {
       if (window.playSoundIfNotMuted) playSoundIfNotMuted('blackjack_deal');
       socket.emit('blackjack_bet', { amount: vrBet.blackjack });
     });

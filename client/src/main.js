@@ -9,7 +9,7 @@ let xrRefSpace = null;
 let controllerLeft = null, controllerRight = null;
 
 // look/movement state
-let yaw = 0, pitch = 0;        // desktop mouse-look (radians)
+let yaw = -Math.PI / 2, pitch = 0;  // start facing east down the boulevard
 let pointerLocked = false;
 let lastFrameTime = 0;
 let snapTurnArmed = true;      // debounce for VR snap turn
@@ -19,7 +19,8 @@ const TP_DIST = 4.0, TP_HEIGHT = 1.2;
 const WALK_SPEED = 4.0;        // metres / second
 const SPRINT_SPEED = 8.0;
 const EYE_HEIGHT = 1.7;
-const BOUND = 48;              // keep inside the ±50 walls
+const BOUND = 72;              // X extent (boulevard length)
+const BOUND_Z = 28;           // Z extent (room depth)
 const SNAP_TURN_RAD = 30 * Math.PI / 180;
 
 function init() {
@@ -34,7 +35,7 @@ function init() {
   camera.position.set(0, EYE_HEIGHT, 0);
 
   playerRig = new THREE.Group();
-  playerRig.position.set(0, 0, 5);
+  playerRig.position.set(-50, 0, 0); // spawn in the lobby (west end)
   playerRig.add(camera);
 
   // Renderer
@@ -51,6 +52,7 @@ function init() {
 
   createCasinoFloor(scene);
   scene.add(playerRig);
+  buildGameStations();
 
   // Keyboard
   document.addEventListener('keydown', (e) => {
@@ -105,16 +107,8 @@ function init() {
         vrButton.innerHTML = 'Exit VR';
         xrRefSpace = await session.requestReferenceSpace('local-floor');
 
-        createBlackjackBoard(scene);
-        createPlinkoBoard(scene);
-        createWheelBoard(scene);
-        createShopBoard(scene);
-
-        // Tracked controllers + laser pointers (aim trigger at a stand to open it)
+        // Tracked controllers + laser pointers (stations/panels already built at startup)
         setupVRControllers();
-
-        // In-world, controller-clickable game panels (bet/play/result)
-        if (window.buildVRGamePanels) buildVRGamePanels(scene);
 
         session.addEventListener('end', () => { isVR = false; vrButton.innerHTML = 'Enter VR'; });
         renderer.xr.setSession(session);
@@ -241,7 +235,7 @@ function desktopMovement(dt) {
   if (move.lengthSq() > 0) {
     move.normalize().multiplyScalar(speed);
     playerRig.position.x = clamp(playerRig.position.x + move.x, -BOUND, BOUND);
-    playerRig.position.z = clamp(playerRig.position.z + move.z, -BOUND, BOUND);
+    playerRig.position.z = clamp(playerRig.position.z + move.z, -BOUND_Z, BOUND_Z);
   }
 
   if (thirdPerson) {
@@ -275,7 +269,7 @@ function vrLocomotion(dt) {
     const dx = (head.x * -moveZ + right.x * moveX) * speed;
     const dz = (head.z * -moveZ + right.z * moveX) * speed;
     playerRig.position.x = clamp(playerRig.position.x + dx, -BOUND, BOUND);
-    playerRig.position.z = clamp(playerRig.position.z + dz, -BOUND, BOUND);
+    playerRig.position.z = clamp(playerRig.position.z + dz, -BOUND_Z, BOUND_Z);
   }
 
   // snap turn on right stick
@@ -287,6 +281,20 @@ function vrLocomotion(dt) {
   } else {
     snapTurnArmed = true;
   }
+}
+
+// build the game stations into their layout zones, then the VR betting panels
+function buildGameStations() {
+  const zones = window.FLOOR_ZONES || [];
+  zones.forEach((z) => {
+    if (z.type !== 'game') return;
+    const pos = { x: z.x, z: z.z };
+    if (z.game === 'blackjack') createBlackjackBoard(scene, pos, z.face);
+    else if (z.game === 'wheel') createWheelBoard(scene, pos, z.face);
+    else if (z.game === 'plinko') createPlinkoBoard(scene, pos, z.face);
+    else if (z.game === 'shop') createShopBoard(scene, pos, z.face);
+  });
+  if (window.buildVRGamePanels) buildVRGamePanels(scene);
 }
 
 // ---------- VR controllers (tracked, with laser + point-to-open) ----------
@@ -384,7 +392,7 @@ function initGameScene() {
   const username = document.getElementById('username').value;
   if (username) {
     const avatar = createAvatar('local', username, true);
-    avatar.setPosition(0, 0, 5);
+    avatar.setPosition(-50, 0, 0); // lobby spawn
     scene.add(avatar.getGroup());
     localAvatar = avatar;
     if (window.applyCosmeticsToLocalAvatar) window.applyCosmeticsToLocalAvatar();

@@ -1,168 +1,146 @@
-// Casino environment. Tuned to look good in VR while staying cheap on the Quest
-// (one shadow-casting light; accent point lights cast no shadows; emissive
-// materials do the "glow" without extra lights).
+// Casino environment — a central boulevard with rooms off each side.
+// Layout is a single source of truth (window.FLOOR_ZONES) consumed by main.js
+// (to place game stations) and built here (floor pads, walls, signage).
+//
+// Coords: boulevard runs along X (lobby at the west end, x negative). Rooms sit
+// on the north (z = -18) and south (z = +18) sides, opening toward the boulevard.
+
+window.FLOOR_ZONES = [
+  { key: 'lobby',     label: 'LOBBY',            accent: 0xffd24a, x: -56, z: 0,   face: [1, 0, 0],  type: 'lobby' },
+  // north side (open toward +z)
+  { key: 'hangout',   label: 'HANGOUT',          accent: 0x66ddff, x: -36, z: -18, face: [0, 0, 1],  type: 'soon', note: 'CHILL ZONE' },
+  { key: 'poker',     label: 'POKER',            accent: 0xaa66ff, x: -12, z: -18, face: [0, 0, 1],  type: 'soon', note: 'COMING 0.9.0' },
+  { key: 'tbd1',      label: '???',              accent: 0x888899, x: 12,  z: -18, face: [0, 0, 1],  type: 'soon', note: 'COMING SOON' },
+  { key: 'shop',      label: 'SHOP',             accent: 0xff8833, x: 36,  z: -18, face: [0, 0, 1],  type: 'game', game: 'shop' },
+  // south side (open toward -z)
+  { key: 'upgrades',  label: 'UPGRADES',         accent: 0xffd24a, x: -36, z: 18,  face: [0, 0, -1], type: 'soon', note: 'IN SHOP' },
+  { key: 'blackjack', label: 'BLACKJACK',        accent: 0xffd24a, x: -12, z: 18,  face: [0, 0, -1], type: 'game', game: 'blackjack' },
+  { key: 'wheel',     label: 'WHEEL',            accent: 0xff33aa, x: 12,  z: 18,  face: [0, 0, -1], type: 'game', game: 'wheel' },
+  { key: 'plinko',    label: 'PLINKO',           accent: 0x33ccff, x: 36,  z: 18,  face: [0, 0, -1], type: 'game', game: 'plinko' },
+  { key: 'slots',     label: 'SLOTS',            accent: 0x33cc66, x: 56,  z: 18,  face: [0, 0, -1], type: 'soon', note: 'COMING 1.1.0' },
+  { key: 'tokens',    label: 'TOKEN EXCHANGE',   accent: 0xffd24a, x: 56,  z: -18, face: [0, 0, 1],  type: 'soon', note: 'COMING 1.1.5' },
+];
+
+const ROOM_W = 18, ROOM_D = 13, WALL_H = 5;
+const FLOOR_W = 150, FLOOR_D = 62;
 
 function makeCarpetTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
   const x = c.getContext('2d');
-  // deep red base
-  x.fillStyle = '#3a0d18';
-  x.fillRect(0, 0, 256, 256);
-  // gold diamond lattice
-  x.strokeStyle = 'rgba(200,160,60,0.35)';
-  x.lineWidth = 3;
+  x.fillStyle = '#3a0d18'; x.fillRect(0, 0, 256, 256);
+  x.strokeStyle = 'rgba(200,160,60,0.35)'; x.lineWidth = 3;
   for (let i = -256; i < 256; i += 48) {
     x.beginPath(); x.moveTo(i, 0); x.lineTo(i + 256, 256); x.stroke();
     x.beginPath(); x.moveTo(i, 256); x.lineTo(i + 256, 0); x.stroke();
   }
-  // small dots at intersections
   x.fillStyle = 'rgba(220,180,80,0.5)';
-  for (let a = 0; a <= 256; a += 48) for (let b = 0; b <= 256; b += 48) {
-    x.beginPath(); x.arc(a, b, 3, 0, Math.PI * 2); x.fill();
-  }
+  for (let a = 0; a <= 256; a += 48) for (let b = 0; b <= 256; b += 48) { x.beginPath(); x.arc(a, b, 3, 0, Math.PI * 2); x.fill(); }
   const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(20, 20);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(30, 12);
   if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
   return tex;
 }
 
-function createCasinoFloor(scene) {
-  // ---- floor: carpet ----
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(100, 100),
-    new THREE.MeshStandardMaterial({ map: makeCarpetTexture(), roughness: 0.9, metalness: 0.0 })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  scene.add(ground);
-
-  // ---- ceiling ----
-  const ceiling = new THREE.Mesh(
-    new THREE.PlaneGeometry(100, 100),
-    new THREE.MeshStandardMaterial({ color: 0x12091f, roughness: 1.0, metalness: 0.0, side: THREE.DoubleSide })
-  );
-  ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.y = 20;
-  scene.add(ceiling);
-
-  // glowing ceiling light panels (emissive, no extra real lights needed)
-  const panelMat = new THREE.MeshStandardMaterial({ color: 0x111122, emissive: 0xfff0c0, emissiveIntensity: 0.8 });
-  for (let gx = -30; gx <= 30; gx += 30) {
-    for (let gz = -30; gz <= 30; gz += 30) {
-      const panel = new THREE.Mesh(new THREE.BoxGeometry(8, 0.2, 8), panelMat);
-      panel.position.set(gx, 19.8, gz);
-      scene.add(panel);
-    }
-  }
-
-  // ---- walls ----
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x161430, roughness: 0.6, metalness: 0.2 });
-  const walls = [
-    [0, 10, -50, 100, 20, 1],
-    [0, 10, 50, 100, 20, 1],
-    [50, 10, 0, 1, 20, 100],
-    [-50, 10, 0, 1, 20, 100],
-  ];
-  walls.forEach(([px, py, pz, w, h, d]) => {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
-    wall.position.set(px, py, pz);
-    wall.receiveShadow = true;
-    scene.add(wall);
-  });
-
-  // neon trim strips along the top of each wall (emissive, glow)
-  const neonColors = [0xff2266, 0x22ccff, 0xff2266, 0x22ccff];
-  const trimDefs = [
-    [0, 18, -49.4, 100, 0.4, 0.3],
-    [0, 18, 49.4, 100, 0.4, 0.3],
-    [49.4, 18, 0, 0.3, 0.4, 100],
-    [-49.4, 18, 0, 0.3, 0.4, 100],
-  ];
-  trimDefs.forEach((d, i) => {
-    const mat = new THREE.MeshStandardMaterial({ color: neonColors[i], emissive: neonColors[i], emissiveIntensity: 1.0 });
-    const trim = new THREE.Mesh(new THREE.BoxGeometry(d[3], d[4], d[5]), mat);
-    trim.position.set(d[0], d[1], d[2]);
-    scene.add(trim);
-  });
-
-  // ---- lighting ----
-  const hemi = new THREE.HemisphereLight(0x9fb4ff, 0x2a1530, 0.55);
-  scene.add(hemi);
-
-  const ambient = new THREE.AmbientLight(0x404060, 0.4);
-  scene.add(ambient);
-
-  // single shadow-casting key light
-  const key = new THREE.DirectionalLight(0xfff2d6, 0.9);
-  key.position.set(20, 40, 20);
-  key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
-  key.shadow.camera.left = -60; key.shadow.camera.right = 60;
-  key.shadow.camera.top = 60; key.shadow.camera.bottom = -60;
-  scene.add(key);
-
-  // warm center glow + a couple of casino accent lights (no shadows = cheap)
-  const center = new THREE.PointLight(0xffd28a, 0.8, 70);
-  center.position.set(0, 16, 0);
-  scene.add(center);
-  const accentA = new THREE.PointLight(0xff2266, 0.5, 50);
-  accentA.position.set(-35, 6, -20);
-  scene.add(accentA);
-  const accentB = new THREE.PointLight(0x22ccff, 0.5, 50);
-  accentB.position.set(35, 6, 20);
-  scene.add(accentB);
-
-  // ---- center chandelier ----
-  const chandelier = new THREE.Group();
-  const ringMat = new THREE.MeshStandardMaterial({ color: 0xffcc55, emissive: 0xffaa33, emissiveIntensity: 0.9, metalness: 0.8, roughness: 0.3 });
-  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(3, 0.12, 12, 48), ringMat);
-  ring1.rotation.x = Math.PI / 2; ring1.position.y = 17;
-  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.1, 12, 40), ringMat);
-  ring2.rotation.x = Math.PI / 2; ring2.position.y = 16;
-  chandelier.add(ring1); chandelier.add(ring2);
-  scene.add(chandelier);
-
-  // ---- "THE FLOOR" sign on the north wall ----
-  const sign = makeTextPanel('THE FLOOR', 1024, 256, '#ffd24a');
-  sign.scale.set(20, 5, 1);
-  sign.position.set(0, 13, -49.3);
-  scene.add(sign);
-
-  // ---- slot-machine decor along both side walls ----
-  const slotBodyMat = new THREE.MeshStandardMaterial({ color: 0x6a0d1a, roughness: 0.4, metalness: 0.5, emissive: 0x220008, emissiveIntensity: 0.3 });
-  const screenMat = new THREE.MeshStandardMaterial({ color: 0x001a0a, emissive: 0x00ff88, emissiveIntensity: 0.7 });
-  for (let i = 0; i < 8; i++) {
-    const z = -30 + i * 8.5;
-    [-1, 1].forEach((side) => {
-      const x = side * 47;
-      const body = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 2), slotBodyMat);
-      body.position.set(x, 2, z);
-      body.castShadow = true; body.receiveShadow = true;
-      scene.add(body);
-
-      const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.8), screenMat);
-      screen.position.set(x - side * 1.02, 2.4, z);
-      screen.rotation.y = side * Math.PI / 2;
-      scene.add(screen);
-    });
-  }
-}
-
-// emissive text panel that "glows" regardless of lighting
-function makeTextPanel(text, w, h, color) {
+function floorSign(text, colorHex, w, h) {
   const c = document.createElement('canvas');
-  c.width = w; c.height = h;
+  c.width = 512; c.height = 128;
   const x = c.getContext('2d');
-  x.fillStyle = 'rgba(8,5,16,0.85)';
-  x.fillRect(0, 0, w, h);
-  x.fillStyle = color;
-  x.font = `bold ${Math.floor(h * 0.55)}px Arial`;
-  x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.fillText(text, w / 2, h / 2);
+  const col = '#' + colorHex.toString(16).padStart(6, '0');
+  x.fillStyle = 'rgba(6,4,14,0.9)'; x.fillRect(0, 0, 512, 128);
+  x.strokeStyle = col; x.lineWidth = 8; x.strokeRect(6, 6, 500, 116);
+  x.fillStyle = col; x.font = 'bold 60px Arial'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.shadowColor = col; x.shadowBlur = 18; x.fillText(text, 256, 64);
   const tex = new THREE.CanvasTexture(c);
   if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
-  return mesh;
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+}
+
+function buildZone(scene, zone) {
+  const g = new THREE.Group();
+  g.position.set(zone.x, 0, zone.z);
+  g.rotation.y = Math.atan2(zone.face[0], zone.face[2]); // local +z -> faces boulevard
+  scene.add(g);
+
+  const accentMat = new THREE.MeshStandardMaterial({ color: zone.accent, emissive: zone.accent, emissiveIntensity: 0.8, roughness: 0.4, metalness: 0.6 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x171433, roughness: 0.7, metalness: 0.2 });
+
+  // floor pad (tinted)
+  const pad = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_D), new THREE.MeshStandardMaterial({ color: zone.accent, roughness: 0.85, metalness: 0.1, transparent: true, opacity: 0.18 }));
+  pad.rotation.x = -Math.PI / 2; pad.position.set(0, 0.02, 0); g.add(pad);
+
+  // back + side walls (alcove opens toward +z = boulevard)
+  const back = new THREE.Mesh(new THREE.BoxGeometry(ROOM_W, WALL_H, 0.4), wallMat);
+  back.position.set(0, WALL_H / 2, -ROOM_D / 2); g.add(back);
+  [-1, 1].forEach((s) => {
+    const sw = new THREE.Mesh(new THREE.BoxGeometry(0.4, WALL_H, ROOM_D), wallMat);
+    sw.position.set(s * ROOM_W / 2, WALL_H / 2, 0); g.add(sw);
+  });
+
+  // neon trim along the top of the back wall
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(ROOM_W, 0.25, 0.25), accentMat);
+  trim.position.set(0, WALL_H - 0.3, -ROOM_D / 2 + 0.2); g.add(trim);
+
+  // signs over the opening
+  const sign = floorSign(zone.label, zone.accent, ROOM_W * 0.7, 1.4);
+  sign.position.set(0, WALL_H - 1.2, ROOM_D / 2 - 0.2); g.add(sign);
+
+  if (zone.type === 'soon' && zone.note) {
+    const note = floorSign(zone.note, zone.accent, ROOM_W * 0.55, 1.0);
+    note.position.set(0, 1.6, -ROOM_D / 2 + 0.3); g.add(note);
+    // soft barrier so it reads as "not open yet"
+    const barrier = new THREE.Mesh(new THREE.BoxGeometry(ROOM_W, 1.0, 0.15), new THREE.MeshStandardMaterial({ color: zone.accent, emissive: zone.accent, emissiveIntensity: 0.4, transparent: true, opacity: 0.4 }));
+    barrier.position.set(0, 0.5, ROOM_D / 2 - 0.3); g.add(barrier);
+  }
+  return g;
+}
+
+function createCasinoFloor(scene) {
+  // ground
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_W, FLOOR_D), new THREE.MeshStandardMaterial({ map: makeCarpetTexture(), roughness: 0.9, metalness: 0.0 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+  // ceiling
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_W, FLOOR_D), new THREE.MeshStandardMaterial({ color: 0x12091f, roughness: 1.0, side: THREE.DoubleSide }));
+  ceiling.rotation.x = Math.PI / 2; ceiling.position.y = WALL_H + 1; scene.add(ceiling);
+
+  // ceiling light panels along the boulevard
+  const panelMat = new THREE.MeshStandardMaterial({ color: 0x111122, emissive: 0xfff0c0, emissiveIntensity: 0.7 });
+  for (let gx = -60; gx <= 60; gx += 20) {
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 4), panelMat);
+    panel.position.set(gx, WALL_H + 0.8, 0); scene.add(panel);
+  }
+
+  // perimeter walls
+  const peri = new THREE.MeshStandardMaterial({ color: 0x100e24, roughness: 0.8, metalness: 0.2 });
+  const W = FLOOR_W / 2, D = FLOOR_D / 2;
+  [[0, -D, FLOOR_W, 1], [0, D, FLOOR_W, 1], [-W, 0, 1, FLOOR_D], [W, 0, 1, FLOOR_D]].forEach(([px, pz, w, d]) => {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, WALL_H + 2, d), peri);
+    wall.position.set(px, (WALL_H + 2) / 2, pz); scene.add(wall);
+  });
+
+  // lighting
+  scene.add(new THREE.HemisphereLight(0x9fb4ff, 0x2a1530, 0.55));
+  scene.add(new THREE.AmbientLight(0x404060, 0.4));
+  const key = new THREE.DirectionalLight(0xfff2d6, 0.85);
+  key.position.set(20, 50, 20); key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.camera.left = -90; key.shadow.camera.right = 90; key.shadow.camera.top = 50; key.shadow.camera.bottom = -50;
+  scene.add(key);
+  // accent lights down the boulevard
+  [[-40, 0xff2266], [0, 0xffd28a], [40, 0x22ccff]].forEach(([x, col]) => {
+    const p = new THREE.PointLight(col, 0.6, 60); p.position.set(x, WALL_H - 0.5, 0); scene.add(p);
+  });
+
+  // lobby chandelier
+  const ringMat = new THREE.MeshStandardMaterial({ color: 0xffcc55, emissive: 0xffaa33, emissiveIntensity: 0.9, metalness: 0.8, roughness: 0.3 });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.12, 12, 48), ringMat);
+  ring.rotation.x = Math.PI / 2; ring.position.set(-56, WALL_H - 0.6, 0); scene.add(ring);
+
+  // big lobby sign
+  const big = floorSign('THE FLOOR', 0xffd24a, 10, 2);
+  big.position.set(-56, 3.2, 0); big.rotation.y = Math.PI / 2; scene.add(big);
+
+  // build every zone's room
+  window.FLOOR_ZONES.forEach((z) => buildZone(scene, z));
 }
