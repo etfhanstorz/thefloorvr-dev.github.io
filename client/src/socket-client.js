@@ -8,10 +8,10 @@ function initSocket(token) {
 
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     // Development: connect to local server
-    serverUrl = 'http://localhost:9000';
+    serverUrl = 'http://localhost:3000';
   } else if (window.location.hostname === 'thefloorvr-dev.github.io') {
-    // GitHub Pages: connect to production server (set this to your actual server)
-    serverUrl = 'https://thefloorvr.fly.dev'; // or your server URL
+    // GitHub Pages: connect to Replit production server
+    serverUrl = 'https://thefloorvr.replit.dev'; // Update with your actual Replit URL
   } else {
     // Default: use same host
     serverUrl = window.location.origin;

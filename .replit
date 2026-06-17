@@ -1,0 +1,14 @@
+run = "cd server && node index.js"
+
+[env]
+PORT = "3000"
+
+[nix]
+channel = "stable-23_05"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[unitTest]
+language = "nodejs"

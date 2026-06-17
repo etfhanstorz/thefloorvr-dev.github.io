@@ -21,7 +21,7 @@ const io = socketIo(server, {
 });
 
 const SECRET = process.env.JWT_SECRET || 'dev-secret-key';
-const PORT = process.env.PORT || 9000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware - CORS for GitHub Pages
 const corsOptions = {
