@@ -179,6 +179,7 @@ function createWheelBoard(scene, pos, face) {
     new THREE.MeshStandardMaterial({ map: wheelFaceTexture(), roughness: 0.5, metalness: 0.2, emissiveIntensity: 0.2 })
   );
   disc.position.set(0, 1.65, 0.12);
+  disc.name = 'wheelDisc';
   group.add(disc);
   // gold rim
   const rim = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.05, 12, 48), MAT.gold());

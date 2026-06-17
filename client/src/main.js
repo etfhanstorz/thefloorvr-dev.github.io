@@ -53,6 +53,7 @@ function init() {
   createCasinoFloor(scene);
   scene.add(playerRig);
   buildGameStations();
+  if (window.buildDecor) buildDecor(scene);
 
   // Keyboard
   document.addEventListener('keydown', (e) => {
@@ -207,6 +208,12 @@ function animate(time, xrFrame) {
       moveUpdateTimer = 0;
     }
     if (typeof updateVoiceVolumes === 'function') updateVoiceVolumes(localAvatar.position, avatars);
+  }
+
+  // animated decor (sparkles, pulsing neon, marquee, idle wheel, disco orb...)
+  if (window.sceneUpdaters) {
+    const t = (time || 0) / 1000;
+    for (let i = 0; i < window.sceneUpdaters.length; i++) window.sceneUpdaters[i](t, dt);
   }
 
   updateHUD();
