@@ -27,8 +27,11 @@ jobs:
         run: |
           mkdir -p _site
           cp -r client/* _site/
+          cp .nojekyll _site/ 2>/dev/null || true
           echo "Build complete - copied client files to _site/"
-          ls -la _site/ | head -20
+          echo "Contents of _site/:"
+          ls -la _site/
+          echo "index.html exists:" && test -f _site/index.html && echo "YES" || echo "NO"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
