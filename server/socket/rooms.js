@@ -84,14 +84,14 @@ function handleSocketConnection(io) {
     const username = socket.username;
     let currentRoom = null;
 
-    console.log(`Player ${playerId} (${username}) connected`);
+    console.log(`[Socket] Player ${playerId} (${username}) connected via ${socket.id}`);
 
     // Auto-join room on connect
     currentRoom = getOrCreateRoom(playerId, username);
-    currentRoom.addPlayer(playerId, username);
+    const joined = currentRoom.addPlayer(playerId, username);
     socket.join(currentRoom.id);
 
-    console.log(`Player ${playerId} (${username}) joined room ${currentRoom.id}`);
+    console.log(`[Socket] Player ${playerId} joined room ${currentRoom.id}, added=${joined}`);
 
     socket.emit('player_joined', {
       playerId,

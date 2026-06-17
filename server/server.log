@@ -1,6 +1,2 @@
 Database initialized (in-memory)
-Server running on http://localhost:3001
-Player 3 (dev.test.1) connected
-Player 3 (dev.test.1) joined room room_1781652664771
-Player 4 (dev.test.2) connected
-Player 4 (dev.test.2) joined room room_1781652664771
+Server running on http://localhost:5000

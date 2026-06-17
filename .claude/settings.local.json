@@ -18,7 +18,23 @@
       "Bash(curl -s -X POST http://localhost:3001/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"bob\",\"password\":\"test123\"}')",
       "Bash(curl -s http://localhost:3001/)",
       "Bash(curl -s -I https://etfhanstorz.github.io/thefloorvr-dev.github.io/)",
-      "Bash(curl -s https://api.github.com/repos/etfhanstorz/thefloorvr-dev.github.io/actions/runs)"
+      "Bash(curl -s https://api.github.com/repos/etfhanstorz/thefloorvr-dev.github.io/actions/runs)",
+      "Bash(pkill -f \"node.*bot\")",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(NODE_TLS_REJECT_UNAUTHORIZED=0 node index.js)",
+      "Bash(pkill -f \"node.*server\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /PID 8024 /F)",
+      "Bash(curl -s http://localhost:3002/)",
+      "Read(//tmp/**)",
+      "Bash(curl -s http://localhost:3003/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"test.devtest\",\"password\":\"test123\"}')",
+      "Bash(pkill -9 -f \"node.*server\")",
+      "Bash(pkill -9 node)",
+      "Bash(taskkill /PID 1444 /F)",
+      "Bash(curl -s http://localhost:5000/)",
+      "Bash(curl -s http://localhost:8080/)",
+      "Bash(curl -s https://api.github.com/repos/etfhanstorz/thefloorvr-dev.github.io/actions/runs?head=main)",
+      "Bash(curl -s \"https://api.github.com/repos/etfhanstorz/thefloorvr-dev.github.io/actions/runs?per_page=5\")"
     ]
   }
 }

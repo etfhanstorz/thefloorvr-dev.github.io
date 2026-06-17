@@ -48,10 +48,7 @@ function init() {
   const blackjackBtn = document.createElement('button');
   blackjackBtn.innerHTML = '♠️ Blackjack';
   blackjackBtn.style.cssText = 'padding: 10px 15px; background: #00aa00; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 12px;';
-  blackjackBtn.addEventListener('click', () => {
-    showBlackjack();
-    if (socket && socket.connected) socket.emit('join_blackjack');
-  });
+  blackjackBtn.addEventListener('click', showBlackjack);
   gameButtonsDiv.appendChild(blackjackBtn);
 
   const plinkoBtn = document.createElement('button');
