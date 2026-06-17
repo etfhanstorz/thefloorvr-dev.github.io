@@ -166,11 +166,55 @@ function buildHUD() {
   crosshair.id = 'crosshair';
   crosshair.style.cssText = 'position:absolute; top:50%; left:50%; width:6px; height:6px; margin:-3px 0 0 -3px; background:rgba(255,255,255,0.6); border-radius:50%; z-index:55; pointer-events:none;';
   document.body.appendChild(crosshair);
+
+  // toast notifications (replace alert(); visible in VR via dom-overlay)
+  const toasts = document.createElement('div');
+  toasts.id = 'toasts';
+  toasts.style.cssText = 'position:absolute; top:70px; left:50%; transform:translateX(-50%); z-index:65; display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none; font-family:Segoe UI, Arial, sans-serif;';
+  document.body.appendChild(toasts);
+
+  // floating balance-change number anchored under the balance HUD
+  const fl = document.createElement('div');
+  fl.id = 'balanceFloat';
+  fl.style.cssText = 'position:absolute; top:54px; right:20px; z-index:64; font-family:monospace; font-weight:bold; font-size:18px; opacity:0; transition:opacity .2s, transform .8s; pointer-events:none;';
+  document.body.appendChild(fl);
 }
 
+window.showToast = function (msg, color) {
+  const c = document.getElementById('toasts');
+  if (!c) return;
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = `background:rgba(12,8,26,0.92); color:${color || '#9fe'}; border:1px solid ${color || '#9fe'}; padding:8px 16px; border-radius:10px; font-size:14px; font-weight:600; box-shadow:0 4px 16px rgba(0,0,0,0.5); opacity:0; transition:opacity .25s, transform .25s; transform:translateY(-8px);`;
+  c.appendChild(t);
+  requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translateY(0)'; });
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(-8px)'; setTimeout(() => t.remove(), 300); }, 3200);
+};
+
+let _lastBalance = null;
 function updateHUD() {
   const bal = document.getElementById('balanceHud');
-  if (bal && window.currentPlayer) bal.textContent = 'P$ ' + Math.floor(window.currentPlayer.balance);
+  if (bal && window.currentPlayer) {
+    const b = Math.floor(window.currentPlayer.balance);
+    bal.textContent = 'P$ ' + b;
+
+    // balance-change feedback: pulse + floating delta
+    if (_lastBalance !== null && b !== _lastBalance) {
+      const delta = b - _lastBalance;
+      const up = delta > 0;
+      bal.style.transition = 'color .15s';
+      bal.style.color = up ? '#5dff8f' : '#ff6b6b';
+      setTimeout(() => { bal.style.color = '#ffd700'; }, 350);
+      const fl = document.getElementById('balanceFloat');
+      if (fl) {
+        fl.textContent = (up ? '+' : '') + delta + ' P$';
+        fl.style.color = up ? '#5dff8f' : '#ff6b6b';
+        fl.style.transition = 'none'; fl.style.transform = 'translateY(0)'; fl.style.opacity = '1';
+        requestAnimationFrame(() => { fl.style.transition = 'opacity .8s, transform .8s'; fl.style.transform = 'translateY(-26px)'; fl.style.opacity = '0'; });
+      }
+    }
+    _lastBalance = b;
+  }
   const room = document.getElementById('roomHud');
   if (room && window.getCurrentRoom) {
     room.textContent = 'Room ' + window.getCurrentRoom() + (window.isRoomHost && window.isRoomHost() ? ' (host)' : '');

@@ -106,8 +106,8 @@ function handleAdminEvent(event) {
         if (username === window.currentPlayer.username) {
           console.log('❌ You have been banned');
           localStorage.setItem('floorVrBanned', 'true');
-          alert('You have been banned from the game');
-          location.reload();
+          if (window.showToast) window.showToast('🚫 You have been banned', '#ff6b6b');
+          setTimeout(() => location.reload(), 2500);
         }
       } else if (action === 'unban') {
         localStorage.removeItem('floorVrBanned');
@@ -124,18 +124,19 @@ function handleAdminEvent(event) {
     case 'announcement':
       console.log(`📢 ${event.message}`);
       playSoundIfNotMuted('notification');
-      alert(`📢 Announcement: ${event.message}`);
+      if (window.showToast) window.showToast('📢 ' + event.message, '#ffd24a');
       break;
 
     case 'event':
       console.log(`🎉 Event: ${name}`);
+      if (window.showToast) window.showToast('🎉 Event: ' + name, '#ff33aa');
       triggerAdminEvent(name, event);
       break;
 
     case 'shutdown':
       console.log('🔴 Server shutdown - disconnecting');
-      alert('Server is shutting down');
-      location.reload();
+      if (window.showToast) window.showToast('🔴 Server is shutting down', '#ff6b6b');
+      setTimeout(() => location.reload(), 2500);
       break;
 
     case 'devmode-toggle':

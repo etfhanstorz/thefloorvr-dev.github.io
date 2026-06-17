@@ -193,6 +193,7 @@ function handleHostMessage(conn, msg) {
   }
 
   if (msg.t === 'gamewin') {
+    if (window.showToast) window.showToast(`🎉 ${msg.name || 'Player'} won P$ ${msg.payout} on ${msg.game}`, '#5dff8f');
     relay(msg, conn);
     return;
   }
@@ -279,7 +280,7 @@ function handleClientMessage(msg) {
     return;
   }
   if (msg.t === 'gamewin') {
-    console.log(`🌐 ${msg.name || 'Player'} won ${msg.payout} on ${msg.game}`);
+    if (window.showToast) window.showToast(`🎉 ${msg.name || 'Player'} won P$ ${msg.payout} on ${msg.game}`, '#5dff8f');
     return;
   }
 }
