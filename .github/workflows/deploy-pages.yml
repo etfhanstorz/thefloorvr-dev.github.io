@@ -5,51 +5,15 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Copy client files to _site
-        run: |
-          mkdir -p _site
-          cp -r client/* _site/
-          cp .nojekyll _site/ || touch _site/.nojekyll
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: '_site'
-
   deploy:
     runs-on: ubuntu-latest
-    needs: build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Copy client to _site
-        run: |
-          mkdir -p _site
-          cp -r client/* _site/
-          touch _site/.nojekyll
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./_site
+          publish_dir: ./client
