@@ -208,33 +208,15 @@ function toggleVoice() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const originalLogin = window.login;
-  window.login = function() {
-    originalLogin();
-    setTimeout(() => initGameScene(), 500);
-  };
+function initGameScene() {
+  if (scene) return;
 
-  const originalRegister = window.register;
-  window.register = function() {
-    originalRegister();
-    setTimeout(() => initGameScene(), 500);
-  };
-
-  function initGameScene() {
-    if (scene || !currentPlayerId) return;
-
-    init();
-    const username = document.getElementById('username').value;
-    const avatar = createAvatar(currentPlayerId, username, true);
+  init();
+  const username = document.getElementById('username').value;
+  if (username) {
+    const avatar = createAvatar('local', username, true);
     avatar.setPosition(0, 0, 0);
     scene.add(avatar.getGroup());
     localAvatar = avatar;
-
-    setTimeout(() => {
-      if (socket && socket.connected) {
-        socket.emit('get_players_in_room');
-      }
-    }, 200);
   }
-});
+}

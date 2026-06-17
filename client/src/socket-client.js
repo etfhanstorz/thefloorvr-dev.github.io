@@ -56,6 +56,7 @@ function login() {
 
   // Store username for later use
   window.currentUsername = username;
+  currentPlayerId = 'local-' + username;
 
   // For P2P, we don't strictly need server auth, but we can validate
   // For now, just proceed to game
@@ -63,6 +64,11 @@ function login() {
   document.getElementById('ui').classList.remove('hidden');
 
   initializeGame();
+
+  // Init game scene
+  setTimeout(() => {
+    if (window.initGameScene) window.initGameScene();
+  }, 100);
 }
 
 function register() {
