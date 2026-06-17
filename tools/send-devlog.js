@@ -16,7 +16,7 @@ const https = require('https');
 const ROOT = path.resolve(__dirname, '..');
 const DEVLOG = path.join(ROOT, 'full v1.0.0 release to-do', 'devlogs (update every fix or update).txt');
 const WEBHOOK_FILE = path.join(ROOT, 'full v1.0.0 release to-do', 'webhook.txt');
-const LIMIT = 1990; // a little under 2000 for the code-fence wrapper
+const LIMIT = 1850; // leaves room for the code-fence + "Devlog x/N" wrapper
 
 function getWebhook() {
   if (process.env.DISCORD_WEBHOOK_URL) return process.env.DISCORD_WEBHOOK_URL.trim();
