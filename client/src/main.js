@@ -294,6 +294,7 @@ function initGameScene() {
     avatar.setPosition(0, 0, 5);
     scene.add(avatar.getGroup());
     localAvatar = avatar;
+    if (window.applyCosmeticsToLocalAvatar) window.applyCosmeticsToLocalAvatar();
   }
 }
 

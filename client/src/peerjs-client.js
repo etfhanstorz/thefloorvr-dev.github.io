@@ -315,7 +315,8 @@ function broadcastState() {
   const pos = getLocalPosition();
   if (!pos) return;
 
-  const msg = { t: 'state', id: MP.myId, name: MP.myName, pos };
+  const cos = (window.getLocalCosmetics ? window.getLocalCosmetics() : null);
+  const msg = { t: 'state', id: MP.myId, name: MP.myName, pos, cos };
 
   if (MP.isHost) {
     relay(msg, null);
@@ -353,6 +354,7 @@ function applyRemoteState(msg) {
     scene.add(avatar.getGroup());
   }
   if (msg.pos) avatar.setPosition(msg.pos.x, msg.pos.y, msg.pos.z);
+  if (msg.cos && avatar.applyCosmetics) avatar.applyCosmetics(msg.cos);
 }
 
 window.removeRemoteAvatar = function (id) {

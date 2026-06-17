@@ -80,6 +80,52 @@ class PlayerAvatar {
   getGroup() {
     return this.group;
   }
+
+  setBodyColor(hex) {
+    if (hex == null) return;
+    this.body.material.color.setHex(hex);
+    if (this.body.material.emissive) {
+      this.body.material.emissive.setHex(hex);
+      this.body.material.emissiveIntensity = 0.2;
+    }
+  }
+
+  setHat(type) {
+    // remove existing hat
+    if (this.hat) { this.group.remove(this.hat); this.hat = null; }
+    if (!type) return;
+
+    let mesh;
+    if (type === 'gold-crown') {
+      const geo = new THREE.CylinderGeometry(0.34, 0.4, 0.25, 12);
+      const mat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.3, emissive: 0x553300, emissiveIntensity: 0.3 });
+      mesh = new THREE.Mesh(geo, mat);
+      mesh.position.y = 1.62;
+    } else if (type === 'party-hat') {
+      const geo = new THREE.ConeGeometry(0.3, 0.6, 16);
+      const mat = new THREE.MeshStandardMaterial({ color: 0xff44aa, roughness: 0.5, emissive: 0x551133, emissiveIntensity: 0.3 });
+      mesh = new THREE.Mesh(geo, mat);
+      mesh.position.y = 1.85;
+    } else if (type === 'top-hat') {
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.05, 16), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 }));
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.5, 16), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 }));
+      top.position.y = 0.27;
+      mesh = new THREE.Group();
+      mesh.add(brim); mesh.add(top);
+      mesh.position.y = 1.6;
+    }
+    if (mesh) {
+      mesh.castShadow = true;
+      this.hat = mesh;
+      this.group.add(mesh);
+    }
+  }
+
+  applyCosmetics(cos) {
+    if (!cos) return;
+    if (cos.bodyColor != null) this.setBodyColor(cos.bodyColor);
+    this.setHat(cos.hat || null);
+  }
 }
 
 const avatars = {};
