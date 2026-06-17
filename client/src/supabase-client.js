@@ -25,7 +25,7 @@ window.sbActive = false;
 })();
 
 function emailFor(username) {
-  return username.toLowerCase().replace(/[^a-z0-9._-]/g, '_') + '@floorvr.app';
+  return username.toLowerCase().replace(/[^a-z0-9._-]/g, '_') + '@floorvrcasino.com';
 }
 
 function loginError(msg) {
