@@ -3,6 +3,9 @@ let scene, camera, renderer, localAvatar;
 let keys = {};
 let xrSession = null;
 let isVR = false;
+let moveUpdateTimer = 0;
+let xrRefSpace = null;
+let controllerLeft = null, controllerRight = null;
 
 function init() {
   // Scene
