@@ -16,6 +16,7 @@ function initMqtt() {
     clientId: 'thefloorvr-bot-' + Math.random().toString(36).slice(7),
     clean: true,
     reconnectPeriod: 1000,
+    rejectUnauthorized: false,
   });
 
   mqttClient.on('connect', () => {
