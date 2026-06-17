@@ -6,31 +6,39 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Copy client to _site
+      - name: Stage client into _site
         run: |
           mkdir -p _site
           cp -r client/* _site/
           touch _site/.nojekyll
 
-      - name: Commit and push to gh-pages
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "github-actions@github.com"
-          git checkout --orphan gh-pages || git checkout gh-pages
-          git rm -rf . || true
-          cp -r _site/* .
-          touch .nojekyll
-          git add -A
-          git commit -m "Deploy client to GitHub Pages" || echo "No changes"
-          git push -u origin gh-pages --force
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

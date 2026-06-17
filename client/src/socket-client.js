@@ -4,27 +4,24 @@ let currentPlayerId = null;
 
 function initializeGame() {
   // Load player data from localStorage
-  loadPlayerData();
+  if (window.loadPlayerData) loadPlayerData();
 
-  // Initialize PeerJS for P2P multiplayer
-  initPeer().then(() => {
-    console.log('✓ PeerJS initialized');
-    updateUI('status', 'Connected');
-  });
+  // Game UIs (overlays)
+  if (window.initBlackjackUI) initBlackjackUI();
+  if (window.initPlinkoUI) initPlinkoUI();
+  if (window.initWheelUI) initWheelUI();
+  if (window.initShopUI) initShopUI();
 
-  // Initialize MQTT for Discord admin events
-  initMqtt().then(() => {
-    console.log('✓ MQTT initialized');
-  });
+  // The 3D scene + local avatar (main.js). Must exist before peers send state.
+  if (window.initGameScene) initGameScene();
 
-  // Initialize game UI
-  initBlackjackUI();
-  initPlinkoUI();
-  initWheelUI();
-  initShopUI();
+  // P2P multiplayer (PeerJS) — discovers/creates a room, no server needed.
+  if (window.initPeer) {
+    initPeer().then(() => console.log('✓ PeerJS ready')).catch(e => console.error('PeerJS failed', e));
+  }
 
-  // Start main Three.js loop
-  init();
+  // Discord admin events (MQTT public broker).
+  if (window.initMqtt) initMqtt();
 }
 
 function updateUI(id, value) {

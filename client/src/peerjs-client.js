@@ -1,301 +1,386 @@
-// PeerJS P2P room management
-// Auto-joins rooms a1, a2, a3... based on availability
-// Max 5 players per room
-// Switches hosts when host disconnects
+// ============================================================================
+// The Floor VR — P2P multiplayer over PeerJS (no backend server)
+//
+// How discovery works (cross-device, no localStorage):
+//   - Each room "aN" has ONE host whose PeerJS id is literally PREFIX + "aN".
+//   - To join, a client first TRIES to register that id itself.
+//       * success  -> the room was empty, so it becomes the host.
+//       * "unavailable-id" error -> a host already exists, so it connects in
+//         as a normal client instead.
+//   - If a room is full (5 players) the host replies "full" and the client
+//     moves on to a(N+1).
+//   - Topology is a star: clients talk to the host, the host relays to all.
+//   - Host migration: if the host drops, the lowest-id survivor claims the
+//     room id and everyone else reconnects to it.
+// ============================================================================
 
-const MAX_PLAYERS_PER_ROOM = 5;
-let peer = null;
-let myPeerId = null;
-let currentRoom = null;
-let roomConnections = []; // connections to other players in room
-let isHost = false;
-let allRoommates = []; // list of peer IDs in current room
+const PREFIX = 'thefloorvr-v1-';
+const MAX_PLAYERS = 5;
+const MAX_ROOMS = 50;
 
-const iceServers = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
-    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-  ],
+const PEER_OPTS = {
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' },
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    ],
+  },
 };
 
-async function initPeer() {
-  return new Promise((resolve) => {
-    peer = new Peer(undefined, { config: iceServers });
+const MP = {
+  peer: null,          // active Peer object (host id OR random client id)
+  myId: null,          // my network id (peer id)
+  myName: 'Player',
+  roomIndex: 0,        // which "aN" we are in (1-based)
+  isHost: false,
+  hostConn: null,      // client -> host DataConnection
+  clients: new Map(),  // host: peerId -> DataConnection
+  roster: [],          // [{id, name}] for the whole room
+  lastSeen: {},        // peerId -> timestamp, for stale cleanup
+};
 
-    peer.on('open', (id) => {
-      myPeerId = id;
-      console.log(`🆔 My Peer ID: ${myPeerId}`);
-      autoJoinRoom();
-      resolve(id);
-    });
+// ---- small promise helpers ------------------------------------------------
 
-    peer.on('connection', handleIncomingConnection);
-    peer.on('error', (err) => console.error('Peer error:', err));
+function makePeer(id) {
+  return new Promise((resolve, reject) => {
+    const p = id ? new Peer(id, PEER_OPTS) : new Peer(PEER_OPTS);
+    let done = false;
+    p.on('open', () => { if (!done) { done = true; resolve(p); } });
+    p.on('error', (e) => { if (!done) { done = true; reject(e); } });
   });
 }
 
-async function autoJoinRoom() {
-  if (!myPeerId) {
-    console.error('Peer not initialized');
+function connectTo(peer, targetId, timeoutMs = 6000) {
+  return new Promise((resolve, reject) => {
+    const conn = peer.connect(targetId, { reliable: true });
+    let done = false;
+    conn.on('open', () => { if (!done) { done = true; resolve(conn); } });
+    conn.on('error', (e) => { if (!done) { done = true; reject(e); } });
+    setTimeout(() => { if (!done) { done = true; reject(new Error('connect-timeout')); } }, timeoutMs);
+  });
+}
+
+// Wait for a single "welcome" or "full" reply to our join request.
+function awaitJoinReply(conn, timeoutMs = 6000) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const handler = (msg) => {
+      if (done) return;
+      if (msg && (msg.t === 'welcome' || msg.t === 'full')) {
+        done = true;
+        conn.off('data', handler);
+        resolve(msg);
+      }
+    };
+    conn.on('data', handler);
+    setTimeout(() => { if (!done) { done = true; conn.off('data', handler); reject(new Error('join-timeout')); } }, timeoutMs);
+  });
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// ---- public entry point ---------------------------------------------------
+
+async function initPeer() {
+  MP.myName = (typeof window.currentUsername === 'string' && window.currentUsername) || 'Player';
+  await joinAnyRoom(1);
+  setStatus();
+  return MP.myId;
+}
+
+// Try rooms a1, a2, ... until we host or join one.
+async function joinAnyRoom(startIndex) {
+  for (let i = startIndex; i <= MAX_ROOMS; i++) {
+    const roomId = PREFIX + 'a' + i;
+
+    // 1) Try to BECOME the host of this room.
+    try {
+      const hostPeer = await makePeer(roomId);
+      becomeHost(hostPeer, i);
+      return;
+    } catch (e) {
+      if (!e || e.type !== 'unavailable-id') {
+        // network/broker hiccup — wait and retry the same room once
+        console.warn(`Host attempt for a${i} failed (${e && e.type}); retrying`, e);
+        await sleep(500);
+        try {
+          const hostPeer = await makePeer(roomId);
+          becomeHost(hostPeer, i);
+          return;
+        } catch (e2) {
+          if (!e2 || e2.type !== 'unavailable-id') { continue; }
+        }
+      }
+      // else: id taken -> a host exists, fall through to join as client
+    }
+
+    // 2) A host exists — connect as a client.
+    try {
+      const clientPeer = await makePeer(null);
+      const conn = await connectTo(clientPeer, roomId);
+      conn.send({ t: 'join', id: clientPeer.id, name: MP.myName });
+      const reply = await awaitJoinReply(conn);
+      if (reply.t === 'welcome') {
+        becomeClient(clientPeer, conn, i, reply.roster || []);
+        return;
+      }
+      // room full -> tidy up and try the next room
+      conn.close();
+      clientPeer.destroy();
+    } catch (e) {
+      console.warn(`Join attempt for a${i} failed`, e);
+      // try the next room
+    }
+  }
+  console.error('Could not find or create a room.');
+}
+
+// ---- becoming host --------------------------------------------------------
+
+function becomeHost(peer, roomIndex) {
+  MP.peer = peer;
+  MP.myId = peer.id;
+  MP.isHost = true;
+  MP.hostConn = null;
+  MP.roomIndex = roomIndex;
+  MP.clients = new Map();
+  MP.roster = [{ id: MP.myId, name: MP.myName }];
+
+  console.log(`🏠 Hosting room a${roomIndex} (${MP.myId})`);
+
+  peer.on('connection', (conn) => {
+    conn.on('open', () => {
+      conn.on('data', (msg) => handleHostMessage(conn, msg));
+    });
+    conn.on('close', () => dropClient(conn));
+    conn.on('error', () => dropClient(conn));
+  });
+
+  peer.on('disconnect', () => { try { peer.reconnect(); } catch (e) {} });
+
+  startHostHeartbeat();
+  applyRosterToUI();
+}
+
+function handleHostMessage(conn, msg) {
+  if (!msg || !msg.t) return;
+
+  if (msg.t === 'join') {
+    // Reject if the room is already full.
+    if (MP.roster.length >= MAX_PLAYERS) {
+      try { conn.send({ t: 'full' }); } catch (e) {}
+      return;
+    }
+    conn._peerId = msg.id;
+    conn._name = msg.name || 'Player';
+    MP.clients.set(msg.id, conn);
+    MP.roster.push({ id: msg.id, name: conn._name });
+    MP.lastSeen[msg.id] = Date.now();
+
+    conn.send({ t: 'welcome', roster: MP.roster });
+    broadcastRoster();
+    applyRosterToUI();
     return;
   }
 
-  // Try rooms a1, a2, a3... until finding one with < 5 players
-  for (let i = 1; i <= 20; i++) {
-    const roomName = 'room-' + String.fromCharCode(97 + (i - 1)) + i; // a1, a2, etc
-    console.log(`Trying to join ${roomName}...`);
-
-    if (await tryJoinRoom(roomName)) {
-      return;
-    }
+  if (msg.t === 'state') {
+    MP.lastSeen[msg.id] = Date.now();
+    applyRemoteState(msg);
+    relay(msg, conn); // relay to every OTHER client
+    return;
   }
 
-  console.log('All rooms full, creating new room');
+  if (msg.t === 'gamewin') {
+    relay(msg, conn);
+    return;
+  }
+
+  if (msg.t === 'leave') {
+    dropClient(conn);
+    return;
+  }
 }
 
-async function tryJoinRoom(roomName) {
-  // Try to connect to a "host peer" for this room
-  // In PeerJS, rooms are managed by peers, not a central server
-  // We'll use localStorage to track which peer is hosting which room
+function dropClient(conn) {
+  const id = conn && conn._peerId;
+  if (!id) return;
+  MP.clients.delete(id);
+  MP.roster = MP.roster.filter(p => p.id !== id);
+  delete MP.lastSeen[id];
+  if (window.removeRemoteAvatar) window.removeRemoteAvatar(id);
+  broadcastRoster();
+  applyRosterToUI();
+  console.log(`👋 ${id} left room a${MP.roomIndex}`);
+}
 
-  const hostPeerId = localStorage.getItem(`room-host-${roomName}`);
-
-  if (!hostPeerId || hostPeerId === myPeerId) {
-    // Room doesn't exist or I'm the host
-    if (!hostPeerId) {
-      // I'm creating this room
-      currentRoom = roomName;
-      isHost = true;
-      allRoommates = [myPeerId];
-      localStorage.setItem(`room-host-${roomName}`, myPeerId);
-      localStorage.setItem(`room-count-${roomName}`, '1');
-      console.log(`✅ Created and hosting room: ${roomName}`);
-      return true;
-    }
-  } else {
-    // Try to connect to the host
-    try {
-      const conn = peer.connect(hostPeerId, { reliable: true });
-
-      conn.on('open', () => {
-        currentRoom = roomName;
-        isHost = false;
-        console.log(`✅ Joined room: ${roomName} (host: ${hostPeerId.slice(0, 6)}...)`);
-
-        // Tell host about myself
-        conn.send({
-          type: 'join',
-          peerId: myPeerId,
-          username: document.getElementById('username')?.value || 'Player',
-        });
-
-        roomConnections.push(conn);
-        conn.on('data', handleRoomMessage);
-        conn.on('close', handleConnectionClosed);
-        return true;
-      });
-
-      conn.on('error', (err) => {
-        console.log(`Could not join ${roomName}: ${err}`);
-        return false;
-      });
-
-      // Wait for connection
-      return new Promise((resolve) => {
-        conn.on('open', () => resolve(true));
-        setTimeout(() => resolve(false), 3000); // Timeout after 3s
-      });
-    } catch (err) {
-      console.log(`Failed to join ${roomName}: ${err}`);
-      return false;
+function relay(msg, exceptConn) {
+  for (const conn of MP.clients.values()) {
+    if (conn !== exceptConn && conn.open) {
+      try { conn.send(msg); } catch (e) {}
     }
   }
 }
 
-function handleIncomingConnection(conn) {
-  conn.on('open', () => {
-    console.log(`📥 Incoming connection from ${conn.peer.slice(0, 6)}...`);
-
-    if (isHost && currentRoom) {
-      conn.on('data', (data) => {
-        if (data.type === 'join') {
-          console.log(`${data.username} joined the room`);
-          allRoommates.push(data.peerId);
-
-          if (allRoommates.length > MAX_PLAYERS_PER_ROOM) {
-            conn.send({ type: 'full' });
-            conn.close();
-            return;
-          }
-
-          // Update room count
-          localStorage.setItem(`room-count-${currentRoom}`, String(allRoommates.length));
-
-          // Send room roster to new player
-          conn.send({
-            type: 'roster',
-            players: allRoommates.map(id => ({
-              peerId: id,
-              isHost: id === myPeerId,
-            })),
-          });
-
-          // Broadcast new player to others
-          broadcastToRoom({
-            type: 'player-joined',
-            peerId: data.peerId,
-            username: data.username,
-          }, conn);
-        } else {
-          // Relay messages between players
-          broadcastToRoom(data, conn);
-        }
-      });
-
-      roomConnections.push(conn);
-      conn.on('close', handleConnectionClosed);
-    }
-  });
-}
-
-function handleRoomMessage(data) {
-  if (data.type === 'roster') {
-    allRoommates = data.players.map(p => p.peerId);
-    console.log(`📋 Room roster: ${allRoommates.length} players`);
-  } else if (data.type === 'player-joined') {
-    console.log(`${data.username} joined`);
-  } else if (data.type === 'game-result') {
-    // Handle game results from other players
-    handleGameResult(data);
-  } else if (data.type === 'state-sync') {
-    // Sync player state
-    handleStateSync(data);
+function broadcastRoster() {
+  const msg = { t: 'roster', roster: MP.roster };
+  for (const conn of MP.clients.values()) {
+    if (conn.open) { try { conn.send(msg); } catch (e) {} }
   }
 }
 
-function broadcastToRoom(message, exceptConn = null) {
-  if (isHost) {
-    roomConnections.forEach(conn => {
-      if (conn !== exceptConn && conn.open) {
-        try {
-          conn.send(message);
-        } catch (e) {
-          console.error('Failed to send:', e);
-        }
+let hostHeartbeat = null;
+function startHostHeartbeat() {
+  clearInterval(hostHeartbeat);
+  hostHeartbeat = setInterval(() => {
+    const now = Date.now();
+    for (const id of Object.keys(MP.lastSeen)) {
+      if (now - MP.lastSeen[id] > 10000) {
+        const conn = MP.clients.get(id);
+        if (conn) dropClient(conn);
       }
-    });
-  }
-}
-
-function handleConnectionClosed(conn) {
-  console.log(`Connection closed: ${conn.peer.slice(0, 6)}...`);
-  roomConnections = roomConnections.filter(c => c !== conn);
-
-  if (isHost && currentRoom) {
-    allRoommates = allRoommates.filter(id => id !== conn.peer);
-    localStorage.setItem(`room-count-${currentRoom}`, String(allRoommates.length));
-  }
-
-  // If host disconnects, elect new host
-  if (conn.peer === localStorage.getItem(`room-host-${currentRoom}`)) {
-    if (isHost) {
-      console.log('Host left, I am new host');
-    } else {
-      console.log('Host left, electing new host...');
-      electNewHost();
     }
+    broadcastRoster();
+  }, 3000);
+}
+
+// ---- becoming client ------------------------------------------------------
+
+function becomeClient(peer, hostConn, roomIndex, roster) {
+  MP.peer = peer;
+  MP.myId = peer.id;
+  MP.isHost = false;
+  MP.hostConn = hostConn;
+  MP.roomIndex = roomIndex;
+  MP.clients = new Map();
+  MP.roster = roster.length ? roster : [{ id: MP.myId, name: MP.myName }];
+
+  console.log(`🙋 Joined room a${roomIndex} as client (${MP.myId})`);
+
+  hostConn.on('data', (msg) => handleClientMessage(msg));
+  hostConn.on('close', () => onHostLost());
+  hostConn.on('error', () => onHostLost());
+  peer.on('disconnect', () => { try { peer.reconnect(); } catch (e) {} });
+
+  applyRosterToUI();
+}
+
+function handleClientMessage(msg) {
+  if (!msg || !msg.t) return;
+
+  if (msg.t === 'roster') {
+    MP.roster = msg.roster || MP.roster;
+    applyRosterToUI();
+    return;
+  }
+  if (msg.t === 'state') {
+    applyRemoteState(msg);
+    return;
+  }
+  if (msg.t === 'gamewin') {
+    console.log(`🌐 ${msg.name || 'Player'} won ${msg.payout} on ${msg.game}`);
+    return;
   }
 }
 
-function electNewHost() {
-  // Oldest peer (by ID) becomes new host
-  if (allRoommates.length === 0) return;
-  const newHostId = allRoommates.sort()[0];
+let migrating = false;
+async function onHostLost() {
+  if (migrating) return;
+  migrating = true;
+  console.warn('Host lost — starting migration');
 
-  if (newHostId === myPeerId) {
-    isHost = true;
-    console.log('🔄 I am now the host');
-    localStorage.setItem(`room-host-${currentRoom}`, myPeerId);
+  const oldHostId = PREFIX + 'a' + MP.roomIndex;
+  if (window.removeRemoteAvatar) window.removeRemoteAvatar(oldHostId);
+
+  // rank survivors by peer id; lowest goes first so we don't all collide
+  const survivors = MP.roster.map(p => p.id).filter(id => id !== oldHostId).sort();
+  const rank = Math.max(0, survivors.indexOf(MP.myId));
+
+  try { if (MP.peer) MP.peer.destroy(); } catch (e) {}
+  MP.peer = null; MP.hostConn = null;
+
+  await sleep(rank * 500 + 200);
+
+  migrating = false;
+  await joinAnyRoom(MP.roomIndex); // take over THIS room, or join its new host
+  setStatus();
+}
+
+// ---- sending our state ----------------------------------------------------
+
+function broadcastState() {
+  if (!MP.peer || !MP.myId) return;
+
+  const pos = getLocalPosition();
+  if (!pos) return;
+
+  const msg = { t: 'state', id: MP.myId, name: MP.myName, pos };
+
+  if (MP.isHost) {
+    relay(msg, null);
+  } else if (MP.hostConn && MP.hostConn.open) {
+    try { MP.hostConn.send(msg); } catch (e) {}
   }
+}
+
+function getLocalPosition() {
+  if (typeof localAvatar !== 'undefined' && localAvatar && localAvatar.position) {
+    return { x: localAvatar.position.x, y: localAvatar.position.y, z: localAvatar.position.z };
+  }
+  return null;
 }
 
 function sendGameResult(result) {
   const msg = {
-    type: 'game-result',
-    peerId: myPeerId,
-    game: result.game,
-    amount: result.amount,
-    payout: result.payout,
-    timestamp: Date.now(),
+    t: 'gamewin', id: MP.myId, name: MP.myName,
+    game: result.game, payout: result.payout, ts: Date.now(),
   };
+  if (MP.isHost) relay(msg, null);
+  else if (MP.hostConn && MP.hostConn.open) { try { MP.hostConn.send(msg); } catch (e) {} }
+  if (window.savePlayerData) savePlayerData();
+}
 
-  if (isHost) {
-    broadcastToRoom(msg);
-  } else if (roomConnections.length > 0) {
-    roomConnections[0].send(msg);
+// ---- applying remote state to the 3D scene --------------------------------
+
+function applyRemoteState(msg) {
+  if (!msg || msg.id === MP.myId) return;
+  if (typeof scene === 'undefined' || !scene) return; // scene not built yet
+
+  let avatar = getAvatar(msg.id);
+  if (!avatar) {
+    avatar = createAvatar(msg.id, msg.name || 'Player', false);
+    scene.add(avatar.getGroup());
   }
-
-  savePlayerData();
+  if (msg.pos) avatar.setPosition(msg.pos.x, msg.pos.y, msg.pos.z);
 }
 
-function handleGameResult(data) {
-  // Host can verify/log game results from other players
-  console.log(`${data.peerId.slice(0, 6)}... won ${data.payout} P$ on ${data.game}`);
-}
+window.removeRemoteAvatar = function (id) {
+  if (typeof removeAvatar === 'function' && getAvatar(id)) removeAvatar(id);
+};
 
-function handleStateSync(data) {
-  // Sync player position and state
-  if (data.peerId !== myPeerId) {
-    const avatar = window.MP?.avatars?.[data.peerId];
-    if (avatar) {
-      avatar.t.head.p.fromArray(data.head.p);
-      avatar.t.head.q.fromArray(data.head.q);
-      (data.hands || []).forEach((h, i) => {
-        if (avatar.t.hands[i]) {
-          avatar.t.hands[i].p.fromArray(h.p);
-          avatar.t.hands[i].q.fromArray(h.q);
-        }
-      });
-    }
-  }
-}
+// ---- UI glue --------------------------------------------------------------
 
-function broadcastState() {
-  if (!currentRoom) return;
-
-  const camera = window.camera; // From main.js
-  const controllers = window.controllers; // From main.js
-
-  if (!camera) return;
-
-  const hp = new THREE.Vector3(), hq = new THREE.Quaternion(), s = new THREE.Vector3();
-  camera.matrixWorld.decompose(hp, hq, s);
-  const hands = (controllers || []).map(c => {
-    const p = new THREE.Vector3(), q = new THREE.Quaternion();
-    c.matrixWorld.decompose(p, q, s);
-    return { p: [p.x, p.y, p.z], q: [q.x, q.y, q.z, q.w] };
-  });
-
-  const msg = {
-    type: 'state-sync',
-    peerId: myPeerId,
-    username: document.getElementById('username')?.value || 'Player',
-    head: { p: [hp.x, hp.y, hp.z], q: [hq.x, hq.y, hq.z, hq.w] },
-    hands,
-  };
-
-  if (isHost) {
-    broadcastToRoom(msg);
-  } else if (roomConnections.length > 0) {
-    roomConnections[0].send(msg);
+function setStatus() {
+  if (window.updateUI) {
+    updateUI('status', MP.isHost ? 'Hosting' : 'Connected');
+    updateUI('roomId', 'a' + MP.roomIndex + (MP.isHost ? ' (host)' : ''));
+    updateUI('playerId', MP.myId ? MP.myId.slice(0, 10) : '-');
   }
 }
 
-// Export functions
+function applyRosterToUI() {
+  setStatus();
+  if (window.updatePlayerList) {
+    updatePlayerList(MP.roster.map(p => ({ username: p.name })));
+  }
+}
+
+// ---- exports --------------------------------------------------------------
+
 window.initPeer = initPeer;
 window.broadcastState = broadcastState;
 window.sendGameResult = sendGameResult;
-window.getCurrentRoom = () => currentRoom;
-window.isRoomHost = () => isHost;
+window.getCurrentRoom = () => 'a' + MP.roomIndex;
+window.isRoomHost = () => MP.isHost;
+window.MP = MP;
