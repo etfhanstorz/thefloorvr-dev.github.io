@@ -108,9 +108,11 @@ function pkStartHand() {
   pkHost.deck = pkMakeDeck();
   pkHost.pot = PK_STAKE * pkHost.seats.length;
   pkHost.phase = 'draw';
+  console.log('🃏 DEAL — ante P$ ' + PK_STAKE + ' x' + pkHost.seats.length);
   pkHost.seats.forEach(s => {
     s.hand = pkHost.deck.splice(0, 5);
     s.done = false; s.winner = false;
+    console.log(`  ${s.name} dealt: ${s.hand.map(pkCardStr).join(' ')}  (${pkEval(s.hand).name})`);
     if (window.pokerToPeer) pokerToPeer(s.id, { t: 'poker', a: 'deal', hand: s.hand, ante: PK_STAKE });
   });
   pkPushState();
@@ -122,6 +124,7 @@ function pkApplyDraw(fromId, discards) {
   if (!s || s.done || !s.hand) return;
   discards.slice(0, 5).forEach(idx => { if (idx >= 0 && idx < 5 && pkHost.deck.length) s.hand[idx] = pkHost.deck.pop(); });
   s.done = true;
+  console.log(`  ${s.name} drew ${discards.length} → ${s.hand.map(pkCardStr).join(' ')}  (${pkEval(s.hand).name})`);
   if (window.pokerToPeer) pokerToPeer(fromId, { t: 'poker', a: 'hand', hand: s.hand });
   pkPushState();
   if (pkHost.seats.every(x => x.done)) pkShowdown();
