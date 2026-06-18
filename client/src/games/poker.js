@@ -129,9 +129,15 @@ function pkApplyDraw(fromId, discards) {
 
 function pkShowdown() {
   let best = null;
-  pkHost.seats.forEach(s => { s._score = pkEval(s.hand).score; if (!best || pkCmp(s._score, best) > 0) best = s._score; });
+  pkHost.seats.forEach(s => { const e = pkEval(s.hand); s._score = e.score; s._name = e.name; if (!best || pkCmp(s._score, best) > 0) best = s._score; });
   const winners = pkHost.seats.filter(s => pkCmp(s._score, best) === 0);
   const share = Math.floor(pkHost.pot / winners.length);
+
+  // dealer log (also streams to the admin console)
+  console.log('🃏 SHOWDOWN — pot P$ ' + pkHost.pot);
+  pkHost.seats.forEach(s => console.log(`  ${s.name}: ${s.hand.map(pkCardStr).join(' ')}  →  ${s._name}`));
+  console.log('  🏆 Winner' + (winners.length > 1 ? 's' : '') + ': ' + winners.map(w => `${w.name} (${w._name})`).join(', ') + ` — P$ ${share} each`);
+
   winners.forEach(s => { s.winner = true; if (window.pokerToPeer) pokerToPeer(s.id, { t: 'poker', a: 'win', amount: share }); });
   pkHost.phase = 'showdown';
   pkPushState();
