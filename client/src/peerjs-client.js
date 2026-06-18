@@ -198,6 +198,11 @@ function handleHostMessage(conn, msg) {
     return;
   }
 
+  if (msg.t === 'poker') {
+    if (window.onPokerHostMsg) window.onPokerHostMsg(conn._peerId, msg);
+    return;
+  }
+
   if (msg.t === 'leave') {
     dropClient(conn);
     return;
@@ -283,7 +288,30 @@ function handleClientMessage(msg) {
     if (window.showToast) window.showToast(`🎉 ${msg.name || 'Player'} won P$ ${msg.payout} on ${msg.game}`, '#5dff8f');
     return;
   }
+  if (msg.t === 'poker') {
+    if (window.onPokerClientMsg) window.onPokerClientMsg(msg);
+    return;
+  }
 }
+
+// ---- poker transport helpers (used by games/poker.js) ----
+window.pokerIsHost = () => MP.isHost;
+window.pokerMyId = () => MP.myId;
+window.pokerMyName = () => MP.myName;
+window.pokerRoster = () => MP.roster.slice();
+// host -> all clients
+window.pokerBroadcast = (msg) => { if (MP.isHost) relay(msg, null); };
+// client -> host (host calls its own handler directly)
+window.pokerToHost = (msg) => {
+  if (MP.isHost) { if (window.onPokerHostMsg) window.onPokerHostMsg(MP.myId, msg); }
+  else if (MP.hostConn && MP.hostConn.open) { try { MP.hostConn.send(msg); } catch (e) {} }
+};
+// host -> one specific peer (or itself)
+window.pokerToPeer = (peerId, msg) => {
+  if (peerId === MP.myId) { if (window.onPokerClientMsg) window.onPokerClientMsg(msg); return; }
+  const c = MP.clients.get(peerId);
+  if (c && c.open) { try { c.send(msg); } catch (e) {} }
+};
 
 let migrating = false;
 async function onHostLost() {

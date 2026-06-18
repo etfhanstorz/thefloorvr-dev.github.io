@@ -91,6 +91,7 @@ function init() {
     gameButtonsDiv.appendChild(b);
   };
   mkBtn('♠️ Blackjack', '#00aa00', 'white', showBlackjack);
+  mkBtn('🃏 Poker', '#aa66ff', 'white', showPoker);
   mkBtn('🎯 Plinko', '#00ff00', 'black', showPlinko);
   mkBtn('🎡 Wheel', '#ffff00', 'black', showWheel);
   mkBtn('🛍️ Shop', '#ff6600', 'white', showShop);
