@@ -135,7 +135,9 @@ async function registerCommands() {
     if (guildId) {
       // guild-scoped commands appear INSTANTLY (great for dev)
       await rest.put(Routes.applicationGuildCommands(client.user.id, guildId), { body: commands });
-      console.log(`✓ Slash commands registered to guild ${guildId} (instant)`);
+      // wipe any GLOBAL commands so they don't show as duplicates alongside guild ones
+      await rest.put(Routes.applicationCommands(client.user.id), { body: [] });
+      console.log(`✓ Slash commands registered to guild ${guildId} (instant); cleared globals`);
     } else {
       // global commands can take up to ~1 hour to appear
       await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
@@ -276,18 +278,22 @@ client.on('interactionCreate', async (interaction) => {
       }
       const fromStr = interaction.options.getString('from');
       const toStr = interaction.options.getString('to');
-      const from = parseLocalTime(fromStr);
-      const to = parseLocalTime(toStr);
-      const immediate = !from && !to;
-      const payload = { id: Date.now(), from, to, immediate };
+      let from = parseLocalTime(fromStr);
+      let to = parseLocalTime(toStr);
+      const immediate = !fromStr && !toStr;
+      if (immediate) { from = Date.now(); to = Date.now() + 120000; } // "now" = next 2 min
 
-      // retained for a window (so mid-window logins are caught); one-shot if immediate
-      mqttClient.publish(MQTT_WIPE, JSON.stringify(payload), { retain: !immediate, qos: 1 }, (err) => {
+      const payload = { id: Date.now(), from, to };
+      // retained so clients connecting mid-window are caught too
+      mqttClient.publish(MQTT_WIPE, JSON.stringify(payload), { retain: true, qos: 1 }, (err) => {
         if (err) console.error('wipe publish error:', err);
       });
+      // auto-clear the retained window once it ends, so it never lingers
+      const clearDelay = Math.max(0, to - Date.now()) + 5000;
+      setTimeout(() => { try { mqttClient.publish(MQTT_WIPE, '', { retain: true }); } catch (e) {} }, clearDelay);
 
       const when = immediate
-        ? 'EVERYONE online right now'
+        ? 'everyone online in the next ~2 minutes'
         : `players who log in between **${fromStr || 'now'}** and **${toStr || 'later'}** (bot local time)`;
       await interaction.reply(`🗑️ Account reset armed for ${when}. Wiped players get +1000 P$.`);
     }
