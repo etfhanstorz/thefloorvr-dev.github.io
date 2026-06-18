@@ -85,6 +85,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function initPeer() {
   MP.myName = (typeof window.currentUsername === 'string' && window.currentUsername) || 'Player';
+  MP.isAdmin = !!(window.currentPlayer && window.currentPlayer.is_admin);
   await joinAnyRoom(1);
   setStatus();
   return MP.myId;
@@ -120,7 +121,7 @@ async function joinAnyRoom(startIndex) {
     try {
       const clientPeer = await makePeer(null);
       const conn = await connectTo(clientPeer, roomId);
-      conn.send({ t: 'join', id: clientPeer.id, name: MP.myName });
+      conn.send({ t: 'join', id: clientPeer.id, name: MP.myName, admin: MP.isAdmin });
       const reply = await awaitJoinReply(conn);
       if (reply.t === 'welcome') {
         becomeClient(clientPeer, conn, i, reply.roster || []);
@@ -146,9 +147,10 @@ function becomeHost(peer, roomIndex) {
   MP.hostConn = null;
   MP.roomIndex = roomIndex;
   MP.clients = new Map();
-  MP.roster = [{ id: MP.myId, name: MP.myName }];
+  MP.roster = [{ id: MP.myId, name: MP.myName, admin: MP.isAdmin }];
+  MP.steppingDown = false;
 
-  console.log(`🏠 Hosting room a${roomIndex} (${MP.myId})`);
+  console.log(`🏠 Hosting room a${roomIndex} (${MP.myId})${MP.isAdmin ? ' [admin]' : ''}`);
 
   peer.on('connection', (conn) => {
     conn.on('open', () => {
@@ -175,13 +177,17 @@ function handleHostMessage(conn, msg) {
     }
     conn._peerId = msg.id;
     conn._name = msg.name || 'Player';
+    conn._admin = !!msg.admin;
     MP.clients.set(msg.id, conn);
-    MP.roster.push({ id: msg.id, name: conn._name });
+    MP.roster.push({ id: msg.id, name: conn._name, admin: conn._admin });
     MP.lastSeen[msg.id] = Date.now();
 
     conn.send({ t: 'welcome', roster: MP.roster });
     broadcastRoster();
     applyRosterToUI();
+
+    // an admin joined a non-admin's room -> hand hosting to the admin
+    if (conn._admin && !MP.isAdmin && !MP.steppingDown) stepDownForAdmin();
     return;
   }
 
@@ -313,6 +319,20 @@ window.pokerToPeer = (peerId, msg) => {
   if (c && c.open) { try { c.send(msg); } catch (e) {} }
 };
 
+// A non-admin host steps down so an admin can take over hosting. Destroying our
+// host peer drops all clients -> they migrate, and the admin (preferred in the
+// election) reclaims the room id. We rejoin shortly after as a client.
+function stepDownForAdmin() {
+  if (MP.steppingDown) return;
+  MP.steppingDown = true;
+  const idx = MP.roomIndex;
+  console.log('👑 Admin joined — stepping down as host');
+  clearInterval(hostHeartbeat);
+  try { if (MP.peer) MP.peer.destroy(); } catch (e) {}
+  MP.peer = null; MP.clients = new Map();
+  setTimeout(() => joinAnyRoom(idx), 1200);
+}
+
 let migrating = false;
 async function onHostLost() {
   if (migrating) return;
@@ -322,18 +342,41 @@ async function onHostLost() {
   const oldHostId = PREFIX + 'a' + MP.roomIndex;
   if (window.removeRemoteAvatar) window.removeRemoteAvatar(oldHostId);
 
-  // rank survivors by peer id; lowest goes first so we don't all collide
-  const survivors = MP.roster.map(p => p.id).filter(id => id !== oldHostId).sort();
+  // elect a new host: admins first, then lowest peer id (so we don't all collide)
+  const survivors = MP.roster.filter(p => p.id !== oldHostId)
+    .sort((a, b) => ((b.admin ? 1 : 0) - (a.admin ? 1 : 0)) || (a.id < b.id ? -1 : 1))
+    .map(p => p.id);
   const rank = Math.max(0, survivors.indexOf(MP.myId));
 
   try { if (MP.peer) MP.peer.destroy(); } catch (e) {}
   MP.peer = null; MP.hostConn = null;
 
   await sleep(rank * 500 + 200);
-
   migrating = false;
-  await joinAnyRoom(MP.roomIndex); // take over THIS room, or join its new host
+
+  if (rank === 0) {
+    // we're the elected host — reclaim this room id, retrying since the broker
+    // can be slow to free the old host's id
+    await reclaimHostOrJoin(MP.roomIndex);
+  } else {
+    await joinAnyRoom(MP.roomIndex); // join whoever became the new host
+  }
   setStatus();
+}
+
+async function reclaimHostOrJoin(idx) {
+  const roomId = PREFIX + 'a' + idx;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const hostPeer = await makePeer(roomId);
+      becomeHost(hostPeer, idx);
+      return;
+    } catch (e) {
+      if (e && e.type === 'unavailable-id') { await sleep(500); continue; } // still held — wait
+      await sleep(400);
+    }
+  }
+  await joinAnyRoom(idx); // gave up reclaiming — just join the room
 }
 
 // ---- sending our state ----------------------------------------------------
