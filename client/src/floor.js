@@ -49,7 +49,12 @@ function floorSign(text, colorHex, w, h) {
   const col = '#' + colorHex.toString(16).padStart(6, '0');
   x.fillStyle = 'rgba(6,4,14,0.9)'; x.fillRect(0, 0, 512, 128);
   x.strokeStyle = col; x.lineWidth = 8; x.strokeRect(6, 6, 500, 116);
-  x.fillStyle = col; x.font = 'bold 60px Arial'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillStyle = col; x.textAlign = 'center'; x.textBaseline = 'middle';
+  // auto-shrink the font so long labels (e.g. TOKEN EXCHANGE) aren't cropped
+  let fontSize = 60;
+  const maxW = 460;
+  do { x.font = `bold ${fontSize}px Arial`; fontSize -= 2; }
+  while (x.measureText(text).width > maxW && fontSize > 16);
   x.shadowColor = col; x.shadowBlur = 18; x.fillText(text, 256, 64);
   const tex = new THREE.CanvasTexture(c);
   if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
