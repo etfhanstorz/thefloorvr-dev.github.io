@@ -77,8 +77,7 @@ function pkPushState() {
   pkPrune();
   const msg = { t: 'poker', a: 'state', table: pkPublic() };
   if (window.pokerBroadcast) pokerBroadcast(msg);
-  if (window.onPokerClientMsg) onPokerClientMsg(msg);
-  if (window.updatePokerTable) updatePokerTable(msg.table);
+  if (window.onPokerClientMsg) onPokerClientMsg(msg); // host updates its own 3D table here too
 }
 function pkCharge(s, amount) {
   if (amount <= 0) return;
@@ -276,7 +275,7 @@ function pkResetSoon() {
 let pkUI = null, pkView = null, pkMyHand = null, pkHolds = [true, true, true, true, true], pkSeated = false;
 
 window.onPokerClientMsg = function (msg) {
-  if (msg.a === 'state') { pkView = msg.table; const me = window.pokerMyId && pokerMyId(); pkSeated = !!(pkView.seats || []).find(s => s.id === me); renderPoker(); }
+  if (msg.a === 'state') { pkView = msg.table; const me = window.pokerMyId && pokerMyId(); pkSeated = !!(pkView.seats || []).find(s => s.id === me); if (window.updatePokerTable) updatePokerTable(pkView); renderPoker(); }
   else if (msg.a === 'deal') { pkMyHand = msg.hand; pkHolds = [true, true, true, true, true]; if (window.playSoundIfNotMuted) playSoundIfNotMuted('blackjack_deal'); renderPoker(); }
   else if (msg.a === 'hand') { pkMyHand = msg.hand; renderPoker(); }
   else if (msg.a === 'charge') { if (window.updateBalance) updateBalance(-(msg.amount || 0)); }
@@ -310,6 +309,7 @@ function pkCardHtml(c, o) {
 function escapePk(s) { return String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 function renderPoker() {
+  if (window.onPokerUiChange) onPokerUiChange(pkView); // drive the in-world VR panel (works without the DOM overlay)
   if (!pkUI) return;
   const me = window.pokerMyId && pokerMyId();
   const v = pkView || { phase: 'idle', pot: 0, seats: [], stake: PK_STAKE, toCall: 0 };
@@ -377,3 +377,6 @@ function pkBtn(label, bg, onclick) {
 window.showPoker = showPoker; window.closePoker = closePoker;
 window.pkSit = pkSit; window.pkLeave = pkLeave; window.pkStart = pkStart;
 window.pkToggleHold = pkToggleHold; window.pkDraw = pkDraw; window.pkAct = pkAct;
+// read-only accessors for the in-world VR panel (poker-table.js)
+window.pokerHand = () => pkMyHand; window.pokerHolds = () => pkHolds;
+window.pokerViewState = () => pkView; window.pokerStake = () => PK_STAKE;

@@ -286,6 +286,9 @@
     glow.position.set(0, 0.3, 0);
     group.add(glow);
 
+    // in-world VR control panel (controller-clickable; faces the boulevard)
+    buildPkVrPanel(group);
+
     pkTableGroup = group;
     if (window.gameBoards) window.gameBoards.poker = group;
     scene.add(group);
@@ -441,6 +444,199 @@
       }
     });
   };
+
+  // ============================ in-world VR control panel ============================
+  // A controller-clickable 3D panel at the table that mirrors the DOM poker UI:
+  // Sit/Deal/Leave, the betting actions (Fold/Check/Call/Bet/Raise/All-in), and a
+  // pointable hand (tap cards to keep) + Draw. Driven by window.onPokerUiChange.
+
+  let pkVr = null;
+  const pkVrButtons = [];   // poker meshes currently registered in window.vrInteractables
+
+  function vrArr() { return (window.vrInteractables = window.vrInteractables || []); }
+
+  function disposeObj(o) {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+    (o.children || []).slice().forEach(disposeObj);
+  }
+  function disposeChildren(group) { group.children.slice().forEach(c => { disposeObj(c); group.remove(c); }); }
+
+  function clearPkVrButtons() {
+    const arr = vrArr();
+    pkVrButtons.forEach(b => { const i = arr.indexOf(b); if (i >= 0) arr.splice(i, 1); });
+    pkVrButtons.length = 0;
+  }
+
+  function roundRectPath(x, px, py, w, h, r) {
+    x.beginPath();
+    x.moveTo(px + r, py); x.lineTo(px + w - r, py); x.quadraticCurveTo(px + w, py, px + w, py + r);
+    x.lineTo(px + w, py + h - r); x.quadraticCurveTo(px + w, py + h, px + w - r, py + h);
+    x.lineTo(px + r, py + h); x.quadraticCurveTo(px, py + h, px, py + h - r);
+    x.lineTo(px, py + r); x.quadraticCurveTo(px, py, px + r, py); x.closePath();
+  }
+
+  function pkBtnTex(label, accent) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 110;
+    const x = c.getContext('2d'); x.clearRect(0, 0, 256, 110);
+    roundRectPath(x, 5, 5, 246, 100, 18);
+    x.fillStyle = 'rgba(18,12,30,0.96)'; x.fill();
+    x.lineWidth = 6; x.strokeStyle = accent; x.shadowColor = accent; x.shadowBlur = 12; x.stroke(); x.shadowBlur = 0;
+    x.fillStyle = '#fff'; x.font = 'bold 34px Arial'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(label, 128, 57);
+    const tex = new THREE.CanvasTexture(c); if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+    return tex;
+  }
+
+  function pkLblTex(text) {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 72;
+    const x = c.getContext('2d'); x.clearRect(0, 0, 512, 72);
+    roundRectPath(x, 2, 2, 508, 68, 14);
+    x.fillStyle = 'rgba(8,5,18,0.82)'; x.fill();
+    x.fillStyle = '#c9a3ff'; x.font = 'bold 30px Arial'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(text || '', 256, 38);
+    const tex = new THREE.CanvasTexture(c); if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+    return tex;
+  }
+  function pkVrLabel(w, h) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: pkLblTex(''), transparent: true }));
+    m.userData.setText = (t) => { m.material.map.dispose(); m.material.map = pkLblTex(t); m.material.needsUpdate = true; };
+    return m;
+  }
+
+  // a clickable button added to a parent group AND to window.vrInteractables
+  function pkVrBtn(parent, label, x, y, w, h, accent, onSelect) {
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: pkBtnTex(label, accent), transparent: true }));
+    mesh.position.set(x, y, 0.001);
+    mesh.userData.onSelect = onSelect;
+    mesh.userData.vrButton = true;
+    parent.add(mesh);
+    vrArr().push(mesh); pkVrButtons.push(mesh);
+    return mesh;
+  }
+
+  // a standing card for the panel hand (face plane + optional gold "held" backing)
+  function makePanelCard(card, held) {
+    const g = new THREE.Group();
+    if (held) {
+      const b = new THREE.Mesh(new THREE.PlaneGeometry(0.125, 0.185), new THREE.MeshBasicMaterial({ color: 0xffd24a }));
+      b.position.z = -0.001; g.add(b);
+    }
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.165), new THREE.MeshBasicMaterial({ map: cardFaceTex(card), transparent: true }));
+    g.add(face);
+    g.userData.face = face;
+    return g;
+  }
+
+  function buildPkVrPanel(parent) {
+    const panel = new THREE.Group();
+    panel.position.set(0, 1.25, 1.18);    // just past the near edge, facing the boulevard (+z local)
+    parent.add(panel);
+
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(1.42, 0.98), new THREE.MeshBasicMaterial({ color: 0x0a0614, transparent: true, opacity: 0.72 }));
+    panel.add(back);
+
+    const title = pokerSign('POKER', '#c9a3ff', 0.7, 0.18);
+    title.position.set(0, 0.40, 0.002); panel.add(title);
+
+    const infoLabel = pkVrLabel(1.28, 0.16);
+    infoLabel.position.set(0, 0.24, 0.003); panel.add(infoLabel);
+
+    const handGroup = new THREE.Group(); handGroup.position.set(0, 0.05, 0.004); panel.add(handGroup);
+    const actionGroup = new THREE.Group(); actionGroup.position.set(0, 0, 0.004); panel.add(actionGroup);
+
+    pkVr = { panel, infoLabel, handGroup, actionGroup };
+  }
+
+  // lay out a centered row of buttons
+  function pkVrRow(defs, y) {
+    const w = 0.3, gap = 0.022, h = 0.13;
+    const total = defs.length * w + (defs.length - 1) * gap;
+    defs.forEach((d, i) => {
+      const x = -total / 2 + w / 2 + i * (w + gap);
+      pkVrBtn(pkVr.actionGroup, d.label, x, y, w, h, d.accent || '#aa66ff', d.fn);
+    });
+  }
+
+  function pkVrShowHand(interactive) {
+    const hand = window.pokerHand && pokerHand();
+    const holds = window.pokerHolds && pokerHolds();
+    if (!hand) return;
+    const cw = 0.13, gap = 0.012;
+    const total = hand.length * cw + (hand.length - 1) * gap;
+    hand.forEach((c, i) => {
+      const x = -total / 2 + cw / 2 + i * (cw + gap);
+      const held = holds ? holds[i] : true;
+      const card = makePanelCard(c, interactive ? held : false);
+      card.position.set(x, 0, 0);
+      pkVr.handGroup.add(card);
+      if (interactive) {
+        const face = card.userData.face;
+        face.userData.onSelect = (idx => () => { if (window.pkToggleHold) pkToggleHold(idx); })(i);
+        face.userData.vrButton = true;
+        vrArr().push(face); pkVrButtons.push(face);
+      }
+    });
+  }
+
+  function updatePkVrPanel(state) {
+    if (!pkVr) return;
+    state = state || { phase: 'idle', pot: 0, seats: [] };
+    clearPkVrButtons();
+    disposeChildren(pkVr.actionGroup);
+    disposeChildren(pkVr.handGroup);
+
+    const me = window.pokerMyId && pokerMyId();
+    const STAKE = (window.pokerStake && pokerStake()) || 50;
+    const seats = state.seats || [];
+    const mySeat = seats.find(s => s.id === me);
+    const myBal = Math.floor((window.currentPlayer && window.currentPlayer.balance) || 0);
+
+    let info = `POT P$ ${state.pot || 0}`;
+    if (state.phase && state.phase !== 'idle') info += `  ·  ${String(state.phase).toUpperCase()}`;
+    if (state.toCall) info += `  ·  CALL ${state.toCall}`;
+
+    if (!mySeat) {
+      pkVrRow([{ label: `SIT (${STAKE})`, accent: '#aa66ff', fn: () => window.pkSit && pkSit() }], -0.18);
+    } else if (state.phase === 'idle') {
+      const defs = [];
+      if (seats.length >= 2) defs.push({ label: 'DEAL', accent: '#33cc66', fn: () => window.pkStart && pkStart() });
+      else info += '   waiting for players…';
+      defs.push({ label: 'LEAVE', accent: '#ff5555', fn: () => window.pkLeave && pkLeave() });
+      pkVrRow(defs, -0.18);
+    } else if (state.phase === 'bet1' || state.phase === 'bet2') {
+      pkVrShowHand(false);
+      if (state.currentTurn === me && !mySeat.folded) {
+        const callCost = Math.max(0, (state.toCall || 0) - (mySeat.committedRound || 0));
+        const defs = [{ label: 'FOLD', accent: '#ff3355', fn: () => pkAct('fold') }];
+        if ((state.toCall || 0) === 0) {
+          defs.push({ label: 'CHECK', accent: '#777', fn: () => pkAct('check') });
+          if (STAKE <= myBal) defs.push({ label: `BET ${STAKE}`, accent: '#cc8800', fn: () => pkAct('bet') });
+        } else {
+          if (callCost > 0 && callCost <= myBal) defs.push({ label: `CALL ${callCost}`, accent: '#117711', fn: () => pkAct('call') });
+          if (state.raises < state.maxRaises && callCost + STAKE <= myBal) defs.push({ label: `RAISE ${STAKE}`, accent: '#cc8800', fn: () => pkAct('raise') });
+        }
+        if (myBal > 0) defs.push({ label: 'ALL-IN', accent: '#cc33ff', fn: () => pkAct('allin', myBal) });
+        pkVrRow(defs, -0.30);
+      } else {
+        const t = seats.find(s => s.id === state.currentTurn);
+        info += `   waiting: ${t ? (t.name || '') : '…'}`;
+      }
+    } else if (state.phase === 'draw') {
+      if (!(mySeat && mySeat.folded)) {
+        pkVrShowHand(true);
+        pkVrRow([{ label: 'DRAW / STAND', accent: '#ffd24a', fn: () => window.pkDraw && pkDraw() }], -0.30);
+      } else {
+        info += '   folded — waiting…';
+      }
+    } else if (state.phase === 'showdown') {
+      info += (mySeat && mySeat.winner) ? '   🏆 YOU WON' : '   showdown';
+    }
+
+    pkVr.infoLabel.userData.setText(info);
+  }
+
+  window.onPokerUiChange = function (view) { updatePkVrPanel(view); };
 
   window.createPokerBoard = createPokerBoard;
 

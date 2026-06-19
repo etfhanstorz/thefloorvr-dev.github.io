@@ -419,6 +419,7 @@ function openGame(name) {
   else if (name === 'plinko') showPlinko();
   else if (name === 'wheel') showWheel();
   else if (name === 'shop') showShop();
+  else if (name === 'poker') { if (window.pokerToHost) pokerToHost({ t: 'poker', a: 'hello' }); if (window.showToast) showToast('🃏 Use the panel at the table to play', '#c9a3ff'); }
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
