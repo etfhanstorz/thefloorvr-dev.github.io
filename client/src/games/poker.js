@@ -66,7 +66,7 @@ function pkPublic() {
     toCall: pkHost.toCall || 0, currentTurn: pkHost.currentTurn || null, raises: pkHost.raises || 0, maxRaises: PK_MAX_RAISES,
     seats: pkHost.seats.map(s => ({
       id: s.id, name: s.name, folded: s.folded, done: s.done,
-      committedRound: s.committedRound || 0, totalCommitted: s.totalCommitted || 0, acted: s.acted,
+      committedRound: s.committedRound || 0, totalCommitted: s.totalCommitted || 0, acted: s.acted, allin: !!s.allin,
       hand: (showdown && !s.folded) ? s.hand : null,
       handName: (showdown && !s.folded && s.hand) ? pkEval(s.hand).name : null,
       winner: showdown ? !!s.winner : false,
@@ -102,7 +102,7 @@ window.onPokerHostMsg = function (fromId, msg) {
   } else if (msg.a === 'draw') {
     pkApplyDraw(fromId, msg.discards || []);
   } else if (msg.a === 'bet-action') {
-    pkHandleBet(fromId, msg.act);
+    pkHandleBet(fromId, msg.act, msg.amount);
   } else if (msg.a === 'hello') {
     if (window.pokerToPeer) pokerToPeer(fromId, { t: 'poker', a: 'state', table: pkPublic() });
   }
@@ -116,7 +116,7 @@ function pkStartHand() {
   pkHost.dealerIndex = (pkHost.dealerIndex + 1) % pkHost.seats.length;
   pkHost.seats.forEach(s => {
     s.hand = pkHost.deck.splice(0, 5);
-    s.folded = false; s.done = false; s.winner = false;
+    s.folded = false; s.done = false; s.winner = false; s.allin = false;
     s.committedRound = 0; s.totalCommitted = 0; s.acted = false;
     pkCharge(s, PK_STAKE); // ante
     if (window.pokerToPeer) pokerToPeer(s.id, { t: 'poker', a: 'deal', hand: s.hand });
@@ -129,11 +129,13 @@ function pkStartHand() {
 function pkBeginBetting(phase) {
   pkHost.phase = phase;
   pkHost.toCall = 0; pkHost.raises = 0;
-  pkHost.seats.forEach(s => { s.committedRound = 0; s.acted = false; });
-  // first to act = left of dealer
+  pkHost.seats.forEach(s => { s.committedRound = 0; s.acted = !!s.allin; });
+  // if 0 or 1 players can still act (rest folded/all-in), there's no betting this round
+  if (pkActive().filter(s => !s.allin).length <= 1) { pkHost.currentTurn = null; pkPushState(); pkEndBettingRound(); return; }
+  // first to act = first non-folded, non-all-in seat left of dealer
   const n = pkHost.seats.length;
   let idx = (pkHost.dealerIndex + 1) % n;
-  for (let k = 0; k < n; k++) { if (!pkHost.seats[idx].folded) break; idx = (idx + 1) % n; }
+  for (let k = 0; k < n; k++) { const s = pkHost.seats[idx]; if (!s.folded && !s.allin) break; idx = (idx + 1) % n; }
   pkHost.currentTurn = pkHost.seats[idx].id;
   pkArmTimer();
   pkPushState();
@@ -149,15 +151,15 @@ function pkNextToAct() {
   const ci = pkHost.seats.findIndex(s => s.id === pkHost.currentTurn);
   for (let k = 1; k <= n; k++) {
     const s = pkHost.seats[(ci + k) % n];
-    if (!s.folded && (!s.acted || s.committedRound < pkHost.toCall)) return s;
+    if (!s.folded && !s.allin && (!s.acted || s.committedRound < pkHost.toCall)) return s;
   }
   return null;
 }
 
-function pkHandleBet(fromId, act) {
+function pkHandleBet(fromId, act, amount) {
   if (!pkHost || (pkHost.phase !== 'bet1' && pkHost.phase !== 'bet2')) return;
   if (pkHost.currentTurn !== fromId) return;
-  const s = pkSeat(fromId); if (!s || s.folded) return;
+  const s = pkSeat(fromId); if (!s || s.folded || s.allin) return;
   const unit = PK_STAKE;
 
   if (act === 'fold') { s.folded = true; s.acted = true; }
@@ -165,6 +167,12 @@ function pkHandleBet(fromId, act) {
   else if (act === 'call') { const cost = pkHost.toCall - s.committedRound; if (cost <= 0) return; pkCharge(s, cost); s.acted = true; }
   else if (act === 'bet') { if (pkHost.toCall !== 0) return; pkCharge(s, unit); pkHost.toCall = unit; pkHost.raises = 1; pkActive().forEach(x => { if (x !== s) x.acted = false; }); s.acted = true; }
   else if (act === 'raise') { if (pkHost.toCall === 0 || pkHost.raises >= PK_MAX_RAISES) return; const cost = (pkHost.toCall - s.committedRound) + unit; pkCharge(s, cost); pkHost.toCall += unit; pkHost.raises++; pkActive().forEach(x => { if (x !== s) x.acted = false; }); s.acted = true; }
+  else if (act === 'allin') {
+    const amt = Math.max(0, amount | 0); if (amt <= 0) return;
+    pkCharge(s, amt); s.allin = true; s.acted = true;
+    // an all-in that exceeds the current bet sets a new line others must answer
+    if (s.committedRound > pkHost.toCall) { pkHost.toCall = s.committedRound; pkActive().forEach(x => { if (x !== s && !x.allin) x.acted = false; }); }
+  }
   else return;
 
   console.log(`  ${s.name} ${act}${pkHost.toCall ? ' (toCall ' + pkHost.toCall + ')' : ''}`);
@@ -212,17 +220,44 @@ function pkAwardSingle(winner) {
   pkResetSoon();
 }
 
+// Split the pot into main + side pots by each player's total contribution.
+// Folded players' chips stay in the pot but they can't win; only non-folded
+// players are eligible for a layer they paid into.
+function pkBuildPots() {
+  const contribs = pkHost.seats.filter(s => (s.totalCommitted || 0) > 0).map(s => ({ s, rem: s.totalCommitted }));
+  const pots = [];
+  while (true) {
+    const live = contribs.filter(c => c.rem > 0);
+    if (!live.length) break;
+    const level = Math.min(...live.map(c => c.rem));
+    let amount = 0; const eligible = [];
+    live.forEach(c => { amount += level; c.rem -= level; if (!c.s.folded) eligible.push(c.s); });
+    if (eligible.length) pots.push({ amount, eligible });
+    else if (pots.length) pots[pots.length - 1].amount += amount; // dead chips fold into last real pot
+  }
+  return pots;
+}
+
 function pkShowdown() {
   clearTimeout(pkTurnTimer);
   const contenders = pkActive();
-  let best = null;
-  contenders.forEach(s => { const e = pkEval(s.hand); s._score = e.score; s._name = e.name; if (!best || pkCmp(s._score, best) > 0) best = s._score; });
-  const winners = contenders.filter(s => pkCmp(s._score, best) === 0);
-  const share = Math.floor(pkHost.pot / winners.length);
+  contenders.forEach(s => { const e = pkEval(s.hand); s._score = e.score; s._name = e.name; });
   console.log('🃏 SHOWDOWN — pot P$ ' + pkHost.pot);
   contenders.forEach(s => console.log(`  ${s.name}: ${s.hand.map(pkCardStr).join(' ')} → ${s._name}`));
-  console.log('  🏆 ' + winners.map(w => `${w.name} (${w._name})`).join(', ') + ` — P$ ${share} each`);
-  winners.forEach(s => { s.winner = true; if (window.pokerToPeer) pokerToPeer(s.id, { t: 'poker', a: 'win', amount: share }); });
+
+  const pots = pkBuildPots();
+  const winnings = {};
+  pots.forEach((pot, pi) => {
+    let best = null;
+    pot.eligible.forEach(s => { if (!best || pkCmp(s._score, best) > 0) best = s._score; });
+    const winners = pot.eligible.filter(s => pkCmp(s._score, best) === 0);
+    const share = Math.floor(pot.amount / winners.length);
+    let rem = pot.amount - share * winners.length; // odd chips → first winner(s)
+    winners.forEach(s => { s.winner = true; winnings[s.id] = (winnings[s.id] || 0) + share + (rem-- > 0 ? 1 : 0); });
+    console.log(`  ${pots.length > 1 ? (pi === 0 ? 'main pot' : 'side pot ' + pi) : 'pot'} P$ ${pot.amount} → ${winners.map(w => w.name + ' (' + w._name + ')').join(', ')}`);
+  });
+  Object.keys(winnings).forEach(id => { if (window.pokerToPeer) pokerToPeer(id, { t: 'poker', a: 'win', amount: winnings[id] }); });
+
   pkHost.phase = 'showdown';
   pkPushState();
   pkResetSoon();
@@ -232,7 +267,7 @@ function pkResetSoon() {
   setTimeout(() => {
     if (!pkHost) return;
     pkHost.phase = 'idle'; pkHost.pot = 0; pkHost.toCall = 0; pkHost.currentTurn = null;
-    pkHost.seats.forEach(s => { s.hand = null; s.folded = false; s.done = false; s.winner = false; s.committedRound = 0; s.totalCommitted = 0; s.acted = false; });
+    pkHost.seats.forEach(s => { s.hand = null; s.folded = false; s.done = false; s.winner = false; s.allin = false; s.committedRound = 0; s.totalCommitted = 0; s.acted = false; });
     pkPushState();
   }, 8000);
 }
@@ -263,7 +298,7 @@ function pkLeave() { pkSeated = false; pkMyHand = null; if (window.pokerToHost) 
 function pkStart() { if (window.pokerToHost) pokerToHost({ t: 'poker', a: 'start' }); }
 function pkToggleHold(i) { pkHolds[i] = !pkHolds[i]; renderPoker(); }
 function pkDraw() { const d = []; for (let i = 0; i < 5; i++) if (!pkHolds[i]) d.push(i); if (window.playSoundIfNotMuted) playSoundIfNotMuted('click'); if (window.pokerToHost) pokerToHost({ t: 'poker', a: 'draw', discards: d }); pkMyHand = null; renderPoker(); }
-function pkAct(act) { if (window.pokerToHost) pokerToHost({ t: 'poker', a: 'bet-action', act }); if (window.playSoundIfNotMuted) playSoundIfNotMuted('click'); }
+function pkAct(act, amount) { if (window.pokerToHost) pokerToHost({ t: 'poker', a: 'bet-action', act, amount }); if (window.playSoundIfNotMuted) playSoundIfNotMuted('click'); }
 
 function pkCardHtml(c, o) {
   o = o || {}; const col = pkIsRed(c) ? '#ff5577' : '#222';
@@ -284,7 +319,7 @@ function renderPoker() {
 
   html += (v.seats || []).map(s => {
     const mine = s.id === me, turn = s.id === v.currentTurn;
-    const tag = s.winner ? ' 🏆' : s.folded ? ' ❌' : (turn ? ' ⬅️' : (s.done && v.phase === 'draw' ? ' ✓' : ''));
+    const tag = s.winner ? ' 🏆' : s.folded ? ' ❌' : s.allin ? ' 🔴 ALL-IN' : (turn ? ' ⬅️' : (s.done && v.phase === 'draw' ? ' ✓' : ''));
     let cards = '';
     if (v.phase === 'showdown' && s.hand) cards = `<div>${s.hand.map(c => pkCardHtml(c, {})).join('')}</div><div style="font-size:11px;color:#9fe;">${s.handName}</div>`;
     return `<div style="padding:6px;margin:3px 0;border-radius:8px;background:${turn ? 'rgba(255,210,74,0.18)' : mine ? 'rgba(170,102,255,0.14)' : 'rgba(255,255,255,0.05)'};opacity:${s.folded ? 0.5 : 1};">
@@ -302,14 +337,17 @@ function renderPoker() {
     if (pkMyHand) { html += `<div style="text-align:center;margin-top:8px;">${pkMyHand.map(c => pkCardHtml(c, {})).join('')}</div><div style="text-align:center;font-size:11px;color:#9fe;">${pkEval(pkMyHand).name}</div>`; }
     const mySeat = v.seats.find(s => s.id === me);
     if (v.currentTurn === me && mySeat && !mySeat.folded) {
-      const toCall = v.toCall - (mySeat.committedRound || 0);
-      const callCost = Math.max(0, toCall);
+      const callCost = Math.max(0, v.toCall - (mySeat.committedRound || 0));
       html += `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">`;
       html += pkBtn('Fold', '#ff3355', `pkAct('fold')`);
-      if (v.toCall === 0) html += pkBtn('Check', '#444', `pkAct('check')`);
-      else html += pkBtn(`Call ${callCost}`, callCost <= myBal ? '#117711' : '#555', callCost <= myBal ? `pkAct('call')` : null);
-      if (v.toCall === 0) html += pkBtn(`Bet ${PK_STAKE}`, PK_STAKE <= myBal ? '#aa6600' : '#555', PK_STAKE <= myBal ? `pkAct('bet')` : null);
-      else if (v.raises < v.maxRaises) { const rc = callCost + PK_STAKE; html += pkBtn(`Raise ${PK_STAKE}`, rc <= myBal ? '#aa6600' : '#555', rc <= myBal ? `pkAct('raise')` : null); }
+      if (v.toCall === 0) {
+        html += pkBtn('Check', '#444', `pkAct('check')`);
+        if (PK_STAKE <= myBal) html += pkBtn(`Bet ${PK_STAKE}`, '#aa6600', `pkAct('bet')`);
+      } else {
+        if (callCost > 0 && callCost <= myBal) html += pkBtn(`Call ${callCost}`, '#117711', `pkAct('call')`);
+        if (v.raises < v.maxRaises && callCost + PK_STAKE <= myBal) html += pkBtn(`Raise ${PK_STAKE}`, '#aa6600', `pkAct('raise')`);
+      }
+      if (myBal > 0) html += pkBtn(`All-in ${myBal}`, '#cc33ff', `pkAct('allin', ${myBal})`);
       html += `</div>`;
     } else {
       const t = v.seats.find(s => s.id === v.currentTurn);

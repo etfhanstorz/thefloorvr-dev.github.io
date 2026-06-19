@@ -318,17 +318,67 @@
     slot.nameTag.visible = true;
   }
 
-  // ---- update from game state ----
+  // ---- animation system (driven by main.js render loop via sceneUpdaters) ----
+  const ZERO = new THREE.Vector3(0, 0, 0);
+  const pkAnims = [];
+  let pkAnimHooked = false;
+  function ensureAnimHook() {
+    if (pkAnimHooked) return;
+    pkAnimHooked = true;
+    (window.sceneUpdaters = window.sceneUpdaters || []).push((t, dt) => {
+      for (let i = pkAnims.length - 1; i >= 0; i--) {
+        const a = pkAnims[i];
+        a.e += dt;
+        const tt = a.e - a.delay;
+        if (tt < 0) continue;
+        const k = a.d > 0 ? Math.min(1, tt / a.d) : 1;
+        a.tick(easeOut(k));
+        if (k >= 1) pkAnims.splice(i, 1);
+      }
+    });
+  }
+  function easeOut(k) { return 1 - Math.pow(1 - k, 3); }
+  function animate(o) { ensureAnimHook(); o.e = 0; o.delay = o.delay || 0; pkAnims.push(o); }
+
+  // chip stack pops in from flat
+  function popIn(group, delay) {
+    group.scale.set(1, 0.01, 1);
+    animate({ d: 0.22, delay: delay || 0, tick: (k) => group.scale.set(1, Math.max(0.01, k), 1) });
+  }
+  // card flies from table center to its seat slot, with a small arc
+  function dealAnim(mesh, cg, delay) {
+    const from = new THREE.Vector3(0, TABLE_Y + 0.32, 0).sub(cg.position); // center, in cg-local space
+    mesh.position.copy(from);
+    animate({
+      d: 0.34, delay,
+      tick: (k) => { mesh.position.lerpVectors(from, ZERO, k); mesh.position.y += Math.sin(k * Math.PI) * 0.12; }
+    });
+  }
+  // card flips face-up (starts showing its back, rotates to reveal)
+  function flipAnim(mesh, delay) {
+    mesh.rotation.x = Math.PI;
+    animate({ d: 0.4, delay, tick: (k) => { mesh.rotation.x = Math.PI * (1 - k); } });
+  }
+
+  function cardKey(s, phase) {
+    if (!s) return 'X';
+    if (s.folded) return 'F';
+    if (phase === 'idle') return '-';
+    if (phase === 'showdown' && s.hand) return 'S' + s.hand.map(c => c.r + '.' + c.s).join(',');
+    return 'D';
+  }
+
+  // ---- update from game state (diff-aware so animations only fire on change) ----
   window.updatePokerTable = function (state) {
     if (!pkTableGroup) return;
+    ensureAnimHook();
     const seats = state.seats || [];
 
     // dealer button
     if (pkDealerDisc) {
       const di = typeof state.dealerIndex === 'number' ? state.dealerIndex : -1;
-      if (di >= 0 && di < seats.length && di < SEAT_POS.length) {
+      if (state.phase !== 'idle' && di >= 0 && di < seats.length && di < SEAT_POS.length) {
         const sp = SEAT_POS[di];
-        // place dealer button clockwise-adjacent from seat, between seat and next
         pkDealerDisc.position.set(sp.x * 0.88, TABLE_Y + 0.063, sp.z * 0.88);
         pkDealerDisc.visible = true;
       } else {
@@ -336,52 +386,58 @@
       }
     }
 
-    // pot chips
-    clearGroup(pkPotGroup);
-    if (state.pot > 0) {
-      const stacks = Math.min(5, Math.ceil(state.pot / 300));
-      for (let i = 0; i < stacks; i++) {
-        const stack = makeChipStack(state.pot / stacks, 2);
-        stack.position.set((i - (stacks - 1) / 2) * 0.12, 0, 0);
-        pkPotGroup.add(stack);
+    // pot chips — rebuild only when the amount changes; pop when it grows
+    if (state.pot !== pkPotGroup._amt) {
+      const grew = state.pot > (pkPotGroup._amt || 0);
+      pkPotGroup._amt = state.pot;
+      clearGroup(pkPotGroup);
+      if (state.pot > 0) {
+        const stacks = Math.min(5, Math.ceil(state.pot / 300));
+        for (let i = 0; i < stacks; i++) {
+          const stack = makeChipStack(state.pot / stacks, 2);
+          stack.position.set((i - (stacks - 1) / 2) * 0.12, 0, 0);
+          pkPotGroup.add(stack);
+        }
+        if (grew) popIn(pkPotGroup);
       }
     }
 
     // seats
     pkSeatSlots.forEach((slot, i) => {
-      clearGroup(slot.chipGroup);
-      slot.cardGroups.forEach(cg => { clearGroup(cg); cg.visible = false; });
+      const s = i < seats.length ? seats[i] : null;
 
-      if (i >= seats.length) {
-        slot.nameTag.visible = false;
-        return;
+      // name tag
+      if (!s) { slot.nameTag.visible = false; }
+      else {
+        const isMe = window.pokerMyId && s.id === pokerMyId();
+        drawNameTag(slot, s.name, isMe, s.id === state.currentTurn, s.folded, s.winner);
       }
 
-      const s = seats[i];
-      const isMe = window.pokerMyId && s.id === pokerMyId();
-      const isTurn = s.id === state.currentTurn;
-
-      drawNameTag(slot, s.name, isMe, isTurn, s.folded, s.winner);
-
-      // committed chips
-      if (s.totalCommitted > 0 && !s.folded) {
-        const stack = makeChipStack(s.totalCommitted, i);
-        slot.chipGroup.add(stack);
+      // committed chips — rebuild only when the amount changes; pop when it grows
+      const amt = s && !s.folded ? (s.totalCommitted || 0) : 0;
+      if (amt !== slot._chipAmt) {
+        const grew = amt > (slot._chipAmt || 0);
+        slot._chipAmt = amt;
+        clearGroup(slot.chipGroup);
+        if (amt > 0) { slot.chipGroup.add(makeChipStack(amt, i)); if (grew) popIn(slot.chipGroup); }
       }
 
-      // cards
-      if (state.phase !== 'idle') {
-        slot.cardGroups.forEach((cg, j) => {
-          if (s.folded) return;
-          let mesh;
-          if (state.phase === 'showdown' && s.hand && s.hand[j]) {
-            mesh = makeCardMesh(s.hand[j]);      // face up
-          } else {
-            mesh = makeCardMesh(null);            // face down
-          }
-          cg.add(mesh);
-          cg.visible = true;
-        });
+      // cards — rebuild only when the card layout changes; animate the transition
+      const key = cardKey(s, state.phase);
+      if (key !== slot._cardKey) {
+        const prev = slot._cardKey;
+        slot._cardKey = key;
+        slot.cardGroups.forEach(cg => { clearGroup(cg); cg.visible = false; });
+        if (key === 'D' || key[0] === 'S') {
+          slot.cardGroups.forEach((cg, j) => {
+            const card = key[0] === 'S' ? (s.hand && s.hand[j]) : null;
+            if (key[0] === 'S' && !card) return;
+            const mesh = makeCardMesh(card);
+            cg.add(mesh); cg.visible = true;
+            if (key === 'D' && prev === '-') dealAnim(mesh, cg, i * 0.09 + j * 0.05);
+            else if (key[0] === 'S' && prev === 'D') flipAnim(mesh, i * 0.1);
+          });
+        }
       }
     });
   };
