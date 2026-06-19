@@ -347,6 +347,7 @@ function buildGameStations() {
     else if (z.game === 'wheel') createWheelBoard(scene, pos, z.face);
     else if (z.game === 'plinko') createPlinkoBoard(scene, pos, z.face);
     else if (z.game === 'shop') createShopBoard(scene, pos, z.face);
+    else if (z.game === 'poker') createPokerBoard(scene, pos, z.face);
   });
   if (window.buildVRGamePanels) buildVRGamePanels(scene);
 }

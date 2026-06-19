@@ -62,6 +62,7 @@ function pkPublic() {
   const showdown = pkHost.phase === 'showdown';
   return {
     phase: pkHost.phase, pot: pkHost.pot, stake: PK_STAKE,
+    dealerIndex: pkHost.dealerIndex >= 0 ? pkHost.dealerIndex : 0,
     toCall: pkHost.toCall || 0, currentTurn: pkHost.currentTurn || null, raises: pkHost.raises || 0, maxRaises: PK_MAX_RAISES,
     seats: pkHost.seats.map(s => ({
       id: s.id, name: s.name, folded: s.folded, done: s.done,
@@ -77,6 +78,7 @@ function pkPushState() {
   const msg = { t: 'poker', a: 'state', table: pkPublic() };
   if (window.pokerBroadcast) pokerBroadcast(msg);
   if (window.onPokerClientMsg) onPokerClientMsg(msg);
+  if (window.updatePokerTable) updatePokerTable(msg.table);
 }
 function pkCharge(s, amount) {
   if (amount <= 0) return;

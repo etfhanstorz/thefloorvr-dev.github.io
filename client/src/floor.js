@@ -9,7 +9,7 @@ window.FLOOR_ZONES = [
   { key: 'lobby',     label: 'LOBBY',            accent: 0xffd24a, x: -56, z: 0,   face: [1, 0, 0],  type: 'lobby' },
   // north side (open toward +z)
   { key: 'hangout',   label: 'HANGOUT',          accent: 0x66ddff, x: -36, z: -18, face: [0, 0, 1],  type: 'soon', note: 'CHILL ZONE' },
-  { key: 'poker',     label: 'POKER',            accent: 0xaa66ff, x: -12, z: -18, face: [0, 0, 1],  type: 'soon', note: 'COMING 0.9.0' },
+  { key: 'poker',     label: 'POKER',            accent: 0xaa66ff, x: -12, z: -18, face: [0, 0, 1],  type: 'game', game: 'poker' },
   { key: 'tbd1',      label: '???',              accent: 0x888899, x: 12,  z: -18, face: [0, 0, 1],  type: 'soon', note: 'COMING SOON' },
   { key: 'shop',      label: 'SHOP',             accent: 0xff8833, x: 36,  z: -18, face: [0, 0, 1],  type: 'game', game: 'shop' },
   // south side (open toward -z)
