@@ -1,3 +1,7 @@
+// Avatar height + hat anchor (hats float at roughly the character's head height)
+const AV_HEIGHT = 1.7;
+const AV_HEAD_TOP = 1.55;
+
 class PlayerAvatar {
   constructor(playerId, username, isLocal = false) {
     this.playerId = playerId;
@@ -7,69 +11,65 @@ class PlayerAvatar {
 
     const group = new THREE.Group();
 
-    // Body (CapsuleGeometry needs three r142+; r128 only has Cylinder)
-    const bodyGeometry = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 16);
-    const bodyColor = isLocal ? 0x00ff00 : 0x0066ff;
-    const bodyMaterial = new THREE.MeshStandardMaterial({
-      color: bodyColor,
-      roughness: 0.4,
-      metalness: 0.2,
-      emissive: bodyColor,
-      emissiveIntensity: 0.2
-    });
-    this.body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    this.body.castShadow = true;
-    this.body.receiveShadow = true;
+    // cosmetic color disc at the feet (this.body is the setBodyColor target)
+    const discCol = isLocal ? 0x2ec27e : 0x3b7dff;
+    const discMat = new THREE.MeshStandardMaterial({ color: discCol, emissive: discCol, emissiveIntensity: 0.5, roughness: 0.5, transparent: true, opacity: 0.85 });
+    this.body = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.02, 36), discMat);
+    this.body.position.y = 0.012;
     group.add(this.body);
 
-    // Head with better geometry
-    const headGeometry = new THREE.SphereGeometry(0.35, 32, 32);
-    const headMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffdbac,
-      roughness: 0.5,
-      metalness: 0.0
-    });
-    this.head = new THREE.Mesh(headGeometry, headMaterial);
-    this.head.position.y = 1.2;
-    this.head.castShadow = true;
-    this.head.receiveShadow = true;
-    group.add(this.head);
+    // placeholder shown until the character model finishes loading (or if it fails)
+    const fbMat = new THREE.MeshStandardMaterial({ color: discCol, roughness: 0.5, metalness: 0.2, emissive: discCol, emissiveIntensity: 0.15 });
+    this.fallback = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.32, 1.45, 18), fbMat);
+    this.fallback.position.y = 0.78; this.fallback.castShadow = true;
+    group.add(this.fallback);
 
-    // Eyes
-    const eyeGeometry = new THREE.SphereGeometry(0.08, 16, 16);
-    const eyeMaterial = new THREE.MeshStandardMaterial({
-      color: isLocal ? 0x00aa00 : 0x0044ff,
-      emissive: isLocal ? 0x00aa00 : 0x0044ff,
-      emissiveIntensity: 0.5
-    });
-    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    leftEye.position.set(-0.12, 1.35, 0.2);
-    group.add(leftEye);
-
-    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    rightEye.position.set(0.12, 1.35, 0.2);
-    group.add(rightEye);
-
-    // Nametag
+    // ---- nametag ----
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 128;
+    canvas.width = 512; canvas.height = 128;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = 'white';
-    ctx.font = 'bold 64px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(username, 256, 80);
-
+    ctx.fillStyle = 'rgba(10,6,20,0.72)';
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(8, 24, 496, 80, 16); ctx.fill(); } else ctx.fillRect(8, 24, 496, 80);
+    ctx.fillStyle = isLocal ? '#7dffb0' : '#9fc2ff';
+    ctx.font = 'bold 60px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(username, 256, 66);
     const texture = new THREE.CanvasTexture(canvas);
     const nametag = new THREE.Mesh(
-      new THREE.PlaneGeometry(2, 0.5),
-      new THREE.MeshBasicMaterial({ map: texture })
+      new THREE.PlaneGeometry(1.2, 0.3),
+      new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false })
     );
-    nametag.position.y = 2.2;
-    nametag.position.z = 0.3;
+    nametag.position.set(0, 2.05, 0);
+    nametag.renderOrder = 2;
+    this.nametag = nametag;
     group.add(nametag);
 
     this.group = group;
+    this.mixer = null;
+    this._loadCharacter();
+  }
+
+  // Load the rigged glTF character, scale it to height, stand it on the floor, and
+  // play its idle animation. Falls back to the placeholder if the model can't load.
+  async _loadCharacter() {
+    if (!window.loadModel) return;
+    const root = await loadModel('models/RobotExpressive.glb', {});
+    if (!root || !this.group) return;
+    let box = new THREE.Box3().setFromObject(root);
+    const h = (box.max.y - box.min.y) || AV_HEIGHT;
+    root.scale.setScalar(AV_HEIGHT / h);
+    box = new THREE.Box3().setFromObject(root);
+    root.position.y = -box.min.y;                 // feet on the floor
+    root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    this.character = root;
+    this.group.add(root);
+    if (this.fallback) { this.group.remove(this.fallback); this.fallback = null; }
+    const gltf = root.userData.gltf;
+    if (gltf && gltf.animations && gltf.animations.length) {
+      this.mixer = new THREE.AnimationMixer(root);
+      const clip = THREE.AnimationClip.findByName(gltf.animations, 'Idle') || gltf.animations[0];
+      if (clip) this.mixer.clipAction(clip).play();
+      ensureAvatarTick();
+    }
   }
 
   setPosition(x, y, z) {
@@ -90,45 +90,78 @@ class PlayerAvatar {
     }
   }
 
+  setShirt(hex) {
+    if (this._shirt) { this.group.remove(this._shirt); this._shirt = null; }
+    if (hex == null) return;
+    const mat = new THREE.MeshStandardMaterial({ color: hex, emissive: hex, emissiveIntensity: 0.12, roughness: 0.6 });
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.28, 24), mat);
+    band.position.y = 0.95;
+    this._shirt = band;
+    this.group.add(band);
+  }
+
+  // Each hat type maps to a GLB file + target height (m) + y-offset above AV_HEAD_TOP.
+  // Models are loaded async and cached by model-loader.js.
   setHat(type) {
-    // remove existing hat
     if (this.hat) { this.group.remove(this.hat); this.hat = null; }
     if (!type) return;
 
-    let mesh;
-    if (type === 'gold-crown') {
-      const geo = new THREE.CylinderGeometry(0.34, 0.4, 0.25, 12);
-      const mat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.3, emissive: 0x553300, emissiveIntensity: 0.3 });
-      mesh = new THREE.Mesh(geo, mat);
-      mesh.position.y = 1.62;
-    } else if (type === 'party-hat') {
-      const geo = new THREE.ConeGeometry(0.3, 0.6, 16);
-      const mat = new THREE.MeshStandardMaterial({ color: 0xff44aa, roughness: 0.5, emissive: 0x551133, emissiveIntensity: 0.3 });
-      mesh = new THREE.Mesh(geo, mat);
-      mesh.position.y = 1.85;
-    } else if (type === 'top-hat') {
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.05, 16), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 }));
-      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.5, 16), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 }));
-      top.position.y = 0.27;
-      mesh = new THREE.Group();
-      mesh.add(brim); mesh.add(top);
-      mesh.position.y = 1.6;
-    }
-    if (mesh) {
-      mesh.castShadow = true;
-      this.hat = mesh;
-      this.group.add(mesh);
-    }
+    const HAT_MODELS = {
+      'gold-crown':    { file: 'models/HatCrown.glb',     h: 0.22, dy: 0.02 },
+      'top-hat':       { file: 'models/HatTopHat.glb',    h: 0.38, dy: 0.02 },
+      'cowboy':        { file: 'models/HatCowboy.glb',    h: 0.26, dy: 0.02 },
+      'wizard':        { file: 'models/HatWizard.glb',    h: 0.48, dy: 0.04 },
+      'viking':        { file: 'models/HatVikingHelm.glb',h: 0.30, dy: 0.0  },
+      'halo':          { file: 'models/HatHalo.glb',      h: 0.14, dy: 0.32 },
+      'hardhat':       { file: 'models/HatHardHat.glb',   h: 0.28, dy: 0.02 },
+      'party-hat':     { file: 'models/HatParty.glb',     h: 0.34, dy: 0.06 },
+      'cap':           { file: 'models/HatCap.glb',       h: 0.20, dy: 0.0  },
+      'jester':        { file: 'models/HatMagician.glb',  h: 0.38, dy: 0.02 },
+      'crown-diamond': { file: 'models/HatKingCrown.glb', h: 0.28, dy: 0.02 },
+      'beret':         { file: 'models/HatPirate.glb',    h: 0.22, dy: 0.02 },
+      'horse':         { file: 'models/Horse.glb',        h: 0.28, dy: 0.12 },
+    };
+
+    const def = HAT_MODELS[type];
+    if (!def || !window.loadModel) return;
+
+    const hatGroup = new THREE.Group();
+    hatGroup.position.y = AV_HEAD_TOP + def.dy;
+    this.hat = hatGroup;
+    this.group.add(hatGroup);
+
+    loadModel(def.file, {}).then(root => {
+      if (!root || this.hat !== hatGroup) return;
+      const box = new THREE.Box3().setFromObject(root);
+      const h = (box.max.y - box.min.y) || def.h;
+      root.scale.setScalar(def.h / h);
+      const box2 = new THREE.Box3().setFromObject(root);
+      root.position.y = -box2.min.y;
+      root.traverse(o => { if (o.isMesh) o.castShadow = true; });
+      hatGroup.add(root);
+    });
   }
 
   applyCosmetics(cos) {
     if (!cos) return;
     if (cos.bodyColor != null) this.setBodyColor(cos.bodyColor);
     this.setHat(cos.hat || null);
+    if (cos.shirt != null && this.setShirt) this.setShirt(cos.shirt);
   }
 }
 
 const avatars = {};
+
+// One render-loop hook drives every avatar's animation mixer; avatars removed from
+// the map simply stop updating (no per-avatar updater leak).
+let _avatarTickHooked = false;
+function ensureAvatarTick() {
+  if (_avatarTickHooked) return;
+  _avatarTickHooked = true;
+  (window.sceneUpdaters = window.sceneUpdaters || []).push((t, dt) => {
+    for (const id in avatars) { const a = avatars[id]; if (a && a.mixer) a.mixer.update(dt || 0); }
+  });
+}
 
 function createAvatar(playerId, username, isLocal = false) {
   if (avatars[playerId]) return avatars[playerId];

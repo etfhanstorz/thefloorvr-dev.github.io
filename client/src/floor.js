@@ -13,7 +13,7 @@ window.FLOOR_ZONES = [
   { key: 'tbd1',      label: '???',              accent: 0x888899, x: 12,  z: -18, face: [0, 0, 1],  type: 'soon', note: 'COMING SOON' },
   { key: 'shop',      label: 'SHOP',             accent: 0xff8833, x: 36,  z: -18, face: [0, 0, 1],  type: 'game', game: 'shop' },
   // south side (open toward -z)
-  { key: 'upgrades',  label: 'UPGRADES',         accent: 0xffd24a, x: -36, z: 18,  face: [0, 0, -1], type: 'soon', note: 'IN SHOP' },
+  { key: 'upgrades',  label: 'UPGRADES',         accent: 0x7733ff, x: -36, z: 18,  face: [0, 0, -1], type: 'game', game: 'upgrades' },
   { key: 'blackjack', label: 'BLACKJACK',        accent: 0xffd24a, x: -12, z: 18,  face: [0, 0, -1], type: 'game', game: 'blackjack' },
   { key: 'wheel',     label: 'WHEEL',            accent: 0xff33aa, x: 12,  z: 18,  face: [0, 0, -1], type: 'game', game: 'wheel' },
   { key: 'plinko',    label: 'PLINKO',           accent: 0x33ccff, x: 36,  z: 18,  face: [0, 0, -1], type: 'game', game: 'plinko' },

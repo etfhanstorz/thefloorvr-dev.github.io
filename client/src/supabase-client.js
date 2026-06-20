@@ -44,12 +44,26 @@ function setLoginBusy(busy) {
   });
 }
 
-function authMessage(err, mode) {
+function authMessage(err) {
   const m = (err && err.message) || 'Something went wrong';
   if (/already registered/i.test(m)) return 'That username is taken — try Login instead.';
   if (/invalid login credentials/i.test(m)) return 'Wrong username or password.';
-  if (/at least 6/i.test(m)) return 'Password must be at least 6 characters.';
+  if (/at least 6/i.test(m) || /password/i.test(m)) return 'Password must be at least 8 characters.';
   return m;
+}
+
+function validateUsername(u) {
+  if (u.length < 3) return 'Username must be at least 3 characters.';
+  if (u.length > 20) return 'Username must be 20 characters or fewer.';
+  if (/[@<>"'`\\]/.test(u)) return 'Username cannot contain @ < > " \' or \\.';
+  return null;
+}
+
+function validatePassword(p, username) {
+  if (p.length < 8) return 'Password must be at least 8 characters.';
+  if (p.toLowerCase() === username.toLowerCase()) return 'Password cannot be the same as your username.';
+  if (/^\d+$/.test(p)) return 'Password cannot be all numbers.';
+  return null;
 }
 
 // main entry called by the login/register buttons
@@ -60,6 +74,13 @@ async function handleAuth(mode) {
   if (!username || !password) { loginError('Enter a username and password.'); return; }
   if (localStorage.getItem('floorVrBanned') === 'true') { loginError('You are banned.'); return; }
 
+  if (mode === 'register') {
+    const uErr = validateUsername(username);
+    if (uErr) { loginError(uErr); return; }
+    const pErr = validatePassword(password, username);
+    if (pErr) { loginError(pErr); return; }
+  }
+
   // no Supabase -> local-only fallback (old behaviour)
   if (!sb) { localEnter(username); return; }
 
@@ -67,12 +88,16 @@ async function handleAuth(mode) {
   try {
     const email = emailFor(username);
     if (mode === 'register') {
+      // Check username uniqueness before creating auth account
+      const { data: existing } = await sb.from('players').select('id').eq('username', username).maybeSingle();
+      if (existing) { loginError('That username is taken — try a different one.'); setLoginBusy(false); return; }
+
       const { data, error } = await sb.auth.signUp({ email, password });
       if (error) throw error;
       const uid = data.user && data.user.id;
       if (uid) {
         const ins = await sb.from('players').insert({ id: uid, username });
-        if (ins.error && ins.error.code !== '23505') throw ins.error; // ignore "already exists"
+        if (ins.error && ins.error.code !== '23505') throw ins.error;
       }
     } else {
       const { error } = await sb.auth.signInWithPassword({ email, password });
@@ -82,7 +107,7 @@ async function handleAuth(mode) {
     enterGame(username);
   } catch (e) {
     console.error('Auth error:', e);
-    loginError(authMessage(e, mode));
+    loginError(authMessage(e));
   } finally {
     setLoginBusy(false);
   }
