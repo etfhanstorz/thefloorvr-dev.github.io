@@ -213,17 +213,17 @@ function _drawHostLine(ctx) {
 window.buildInfoBoards = function(scene) {
   // Place 3 boards along the north wall of the lobby boulevard, facing south.
   // Y centre = 2.0m (eye level), boards are 3.2m tall.
-  // Boards on the north boulevard wall (z = -31), facing south (toward player).
-  // Spaced 6m apart starting near the lobby spawn.
+  // Boards on the lobby back wall (west end, x ≈ -62.3), facing east toward the player.
+  // Spread north/south (z) so they sit side-by-side on the back wall.
   const boards = [
-    { x: -52, label: 'playerlist', color: 0xffd700, draw: _drawPlayerList },
-    { x: -44, label: 'roomid',     color: 0x33ccff, draw: _drawRoomId },
-    { x: -36, label: 'hostline',   color: 0xcc44ff, draw: _drawHostLine },
+    { z: -4,  label: 'playerlist', color: 0xffd700, draw: _drawPlayerList },
+    { z:  0,  label: 'roomid',     color: 0x33ccff, draw: _drawRoomId },
+    { z:  4,  label: 'hostline',   color: 0xcc44ff, draw: _drawHostLine },
   ];
 
   const meshes = {};
-  boards.forEach(({ x, label, color, draw }) => {
-    const y = 2.2, z = -30.8; // flush against north wall
+  boards.forEach(({ z, label, color, draw }) => {
+    const x = -62.2, y = 2.2; // lobby back wall, just off the surface
 
     _ibFrame(color, scene, x, y, z);
 
@@ -232,8 +232,7 @@ window.buildInfoBoards = function(scene) {
     draw(ctx);
     const mesh = _ibMesh(canvas);
     mesh.position.set(x, y, z);
-    // face south (+z direction)
-    mesh.rotation.y = Math.PI;
+    mesh.rotation.y = -Math.PI / 2; // plane faces east (+X) toward the player
     scene.add(mesh);
     meshes[label] = { mesh, ctx, canvas, draw };
   });
