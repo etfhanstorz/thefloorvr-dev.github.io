@@ -88,9 +88,11 @@ function decorateRoom(scene, zone) {
   // plants in the back corners
   [-1, 1].forEach(s => { const p = makePlant(); p.position.set(s * (halfW - 0.8), 0, -halfD + 0.8); g.add(p); });
 
-  // banner on the back wall
-  const banner = makeBanner(zone.accent);
-  banner.position.set(0, 2.6, -halfD - 0.18); g.add(banner);
+  // banner on the back wall (skip lobby — info boards live there)
+  if (zone.type !== 'lobby') {
+    const banner = makeBanner(zone.accent);
+    banner.position.set(0, 2.6, -halfD - 0.18); g.add(banner);
+  }
 
   // a soft rug under the room
   g.add(makeRug(zone.accent, 6, 6));
