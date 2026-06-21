@@ -404,9 +404,11 @@ function setupVRControllers() {
       const hand = (e.data && e.data.handedness) || (i === 0 ? 'left' : 'right');
       vrGripByHand[hand] = grip;
       placeModel(hand);
-      // re-attach wrist HUD and mod menu now that we know which grip is left
-      if (hand === 'left') {
+      // re-attach wrist HUD (right) and mod menu (left) once handedness is confirmed
+      if (hand === 'right') {
         if (_wristMesh && !grip.children.includes(_wristMesh)) grip.add(_wristMesh);
+      }
+      if (hand === 'left') {
         if (_vrModMenu && !grip.children.includes(_vrModMenu)) grip.add(_vrModMenu);
       }
     });
@@ -434,9 +436,10 @@ function buildWristHUD() {
   const mat = new THREE.MeshBasicMaterial({ map: _wristTex, transparent: true, depthWrite: false });
   _wristMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.052), mat);
   // sit on top of the wrist, tilted to face the player when arm is raised
-  _wristMesh.position.set(0, 0.01, -0.04);
-  _wristMesh.rotation.x = -Math.PI / 4;
-  if (vrGrips[0]) vrGrips[0].add(_wristMesh);
+  _wristMesh.position.set(0, 0.09, 0.0);
+  _wristMesh.rotation.x = -Math.PI / 2;
+  const rightGrip = vrGripByHand['right'] || vrGrips[1];
+  if (rightGrip) rightGrip.add(_wristMesh);
   _drawWristHUD(0);
 }
 
@@ -516,7 +519,7 @@ function buildVRModMenu() {
 
   // Attach above the left palm, face-up (readable when you raise your palm).
   // Grip space: Y = thumb-up, Z = toward player (wrist). Plane default faces +Z.
-  _vrModMenu.position.set(0, 0.06, 0.0);
+  _vrModMenu.position.set(0, 0.12, 0.0);
   _vrModMenu.rotation.x = -Math.PI / 2; // lay flat, face up (palm side)
   const leftGrip = vrGripByHand['left'] || vrGrips[0];
   if (leftGrip) leftGrip.add(_vrModMenu);
