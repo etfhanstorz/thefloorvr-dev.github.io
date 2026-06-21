@@ -371,6 +371,7 @@ function buildGameStations() {
     else if (z.game === 'poker') createPokerBoard(scene, pos, z.face);
   });
   if (window.buildVRGamePanels) buildVRGamePanels(scene);
+  if (window.buildInfoBoards) buildInfoBoards(scene);
 }
 
 // ---------- VR controllers (tracked, with laser + point-to-open) ----------
