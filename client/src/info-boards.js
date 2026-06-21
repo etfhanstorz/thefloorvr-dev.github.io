@@ -53,37 +53,59 @@ function _ibFrame(color, scene, x, y, z) {
 
 // ── Leaderboard ──────────────────────────────────────────────────────────────
 
-function _drawLeaderboard(ctx, data) {
+function _drawPlayerList(ctx) {
   const W = INFO_BOARD.CW, H = INFO_BOARD.CH;
   _ibBg(ctx, W, H, '#ffd700');
 
   ctx.fillStyle = '#ffd700'; ctx.font = 'bold 42px Arial'; ctx.textAlign = 'center';
   ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 12;
-  ctx.fillText('🏆 LEADERBOARD', W/2, 54); ctx.shadowBlur = 0;
+  ctx.fillText('PLAYERS', W/2, 54); ctx.shadowBlur = 0;
 
-  const rows = (data || []).slice(0, 8);
-  if (!rows.length) {
+  const mp = window.MP || {};
+  const roster = mp.roster || [];
+  const myName = (window.currentPlayer && window.currentPlayer.username) || window.currentUsername || '';
+
+  if (!roster.length) {
     ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '28px Arial';
-    ctx.fillText('Loading…', W/2, H/2); return;
+    ctx.fillText('Connecting…', W/2, H/2); return;
   }
-  const top3 = ['#ffd700', '#c0c0c0', '#cd7f32'];
-  rows.forEach((p, i) => {
-    const y = 110 + i * 72;
-    // row bg
-    ctx.fillStyle = i < 3 ? `rgba(255,255,255,0.07)` : 'rgba(255,255,255,0.03)';
+
+  roster.slice(0, 8).forEach((p, i) => {
+    const y = 108 + i * 72;
+    const isHost = i === 0;
+    const isMe = p.name === myName;
+
+    ctx.fillStyle = isMe ? 'rgba(255,210,74,0.12)' : 'rgba(255,255,255,0.04)';
     if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(18, y - 28, W - 36, 58, 8); ctx.fill(); }
     else { ctx.fillRect(18, y - 28, W - 36, 58); }
-    // rank
-    ctx.fillStyle = top3[i] || 'rgba(255,255,255,0.5)';
-    ctx.font = `bold ${i < 3 ? 30 : 24}px Arial`; ctx.textAlign = 'left';
-    ctx.fillText(`#${i+1}`, 30, y + 10);
+
+    // host crown or slot number
+    if (isHost) {
+      ctx.fillStyle = '#ffd700'; ctx.font = 'bold 26px Arial'; ctx.textAlign = 'left';
+      ctx.fillText('👑', 26, y + 12);
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = '22px Arial'; ctx.textAlign = 'left';
+      ctx.fillText(`${i + 1}`, 32, y + 12);
+    }
+
     // name
-    ctx.fillStyle = '#fff'; ctx.font = `${i < 3 ? 'bold ' : ''}26px Arial`;
-    ctx.fillText(p.username || '?', 80, y + 10);
-    // balance
-    ctx.fillStyle = '#ffd700'; ctx.font = 'bold 24px Arial'; ctx.textAlign = 'right';
-    ctx.fillText('P$' + Math.floor(p.balance || 0).toLocaleString(), W - 26, y + 10);
+    ctx.fillStyle = isMe ? '#ffd700' : '#fff';
+    ctx.font = `bold 28px Arial`; ctx.textAlign = 'left';
+    ctx.fillText(p.name || '?', 66, y + 12);
+
+    // admin badge
+    if (p.admin) {
+      ctx.fillStyle = '#ff4466'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'right';
+      ctx.fillText('ADMIN', W - 24, y + 12);
+    } else if (isMe) {
+      ctx.fillStyle = 'rgba(255,210,74,0.7)'; ctx.font = '18px Arial'; ctx.textAlign = 'right';
+      ctx.fillText('you', W - 24, y + 12);
+    }
   });
+
+  // footer count
+  ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = '20px Arial'; ctx.textAlign = 'center';
+  ctx.fillText(`${roster.length} / 8 in room`, W/2, H - 32);
 }
 
 // ── Room ID ───────────────────────────────────────────────────────────────────
@@ -192,7 +214,7 @@ window.buildInfoBoards = function(scene) {
   // Place 3 boards along the north wall of the lobby boulevard, facing south.
   // Y centre = 2.0m (eye level), boards are 3.2m tall.
   const boards = [
-    { x: -54, label: 'leaderboard', color: 0xffd700, draw: (ctx) => _drawLeaderboard(ctx, window._lbCache) },
+    { x: -54, label: 'playerlist',  color: 0xffd700, draw: _drawPlayerList },
     { x: -47, label: 'roomid',      color: 0x33ccff, draw: _drawRoomId },
     { x: -40, label: 'hostline',    color: 0xcc44ff, draw: _drawHostLine },
   ];
@@ -219,17 +241,6 @@ window.buildInfoBoards = function(scene) {
       mesh._tex.needsUpdate = true;
     });
   }, 5000);
-
-  // Pull leaderboard data every 30s
-  async function fetchLb() {
-    if (window.sbFetchLeaderboard) {
-      window._lbCache = await sbFetchLeaderboard('balance', 8);
-      const lb = meshes['leaderboard'];
-      if (lb) { _drawLeaderboard(lb.ctx, window._lbCache); lb.mesh._tex.needsUpdate = true; }
-    }
-  }
-  fetchLb();
-  setInterval(fetchLb, 30000);
 
   window._infoBoardMeshes = meshes;
 };
