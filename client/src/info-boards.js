@@ -213,15 +213,17 @@ function _drawHostLine(ctx) {
 window.buildInfoBoards = function(scene) {
   // Place 3 boards along the north wall of the lobby boulevard, facing south.
   // Y centre = 2.0m (eye level), boards are 3.2m tall.
+  // Boards on the north boulevard wall (z = -31), facing south (toward player).
+  // Spaced 6m apart starting near the lobby spawn.
   const boards = [
-    { x: -54, label: 'playerlist',  color: 0xffd700, draw: _drawPlayerList },
-    { x: -47, label: 'roomid',      color: 0x33ccff, draw: _drawRoomId },
-    { x: -40, label: 'hostline',    color: 0xcc44ff, draw: _drawHostLine },
+    { x: -52, label: 'playerlist', color: 0xffd700, draw: _drawPlayerList },
+    { x: -44, label: 'roomid',     color: 0x33ccff, draw: _drawRoomId },
+    { x: -36, label: 'hostline',   color: 0xcc44ff, draw: _drawHostLine },
   ];
 
   const meshes = {};
   boards.forEach(({ x, label, color, draw }) => {
-    const y = 2.0, z = -5.5;
+    const y = 2.2, z = -30.8; // flush against north wall
 
     _ibFrame(color, scene, x, y, z);
 
@@ -230,6 +232,8 @@ window.buildInfoBoards = function(scene) {
     draw(ctx);
     const mesh = _ibMesh(canvas);
     mesh.position.set(x, y, z);
+    // face south (+z direction)
+    mesh.rotation.y = Math.PI;
     scene.add(mesh);
     meshes[label] = { mesh, ctx, canvas, draw };
   });
