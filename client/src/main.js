@@ -246,8 +246,9 @@ function animate(time, xrFrame) {
   lastFrameTime = time;
 
   if (isVR && xrFrame) {
-    vrLocomotion(dt);          // three.js auto-updates the built-in controllers
-    updateVRBody();            // bend the arms so the hands follow the controllers
+    vrLocomotion(dt);
+    updateVRBody();
+    _pollModMenuGrip(xrFrame);
   } else if (!isVR) {
     desktopMovement(dt);
   }
@@ -377,6 +378,7 @@ function buildGameStations() {
 let vrRaycaster = null, vrTmpMatrix = null;
 let vrControllersSetup = false;
 let vrGrips = [];   // controllerGrip objects (their .position is the wrist, in rig space)
+let vrGripByHand = {};  // { left: grip, right: grip } — set on connected event
 let vrBody = null;  // shoulders + arms that connect to the controllers
 
 function setupVRControllers() {
@@ -398,7 +400,16 @@ function setupVRControllers() {
       while (grip.children.length) grip.remove(grip.children[0]);
       grip.add(window.makeControllerModel ? window.makeControllerModel(hand) : makeControllerMesh());
     };
-    grip.addEventListener('connected', (e) => placeModel((e.data && e.data.handedness) || (i === 0 ? 'left' : 'right')));
+    grip.addEventListener('connected', (e) => {
+      const hand = (e.data && e.data.handedness) || (i === 0 ? 'left' : 'right');
+      vrGripByHand[hand] = grip;
+      placeModel(hand);
+      // re-attach wrist HUD and mod menu now that we know which grip is left
+      if (hand === 'left') {
+        if (_wristMesh && !grip.children.includes(_wristMesh)) grip.add(_wristMesh);
+        if (_vrModMenu && !grip.children.includes(_vrModMenu)) grip.add(_vrModMenu);
+      }
+    });
     grip.addEventListener('disconnected', () => { while (grip.children.length) grip.remove(grip.children[0]); });
     placeModel(i === 0 ? 'left' : 'right'); // immediate fallback so a model always shows
     playerRig.add(grip);
@@ -408,15 +419,6 @@ function setupVRControllers() {
   buildVRBody();
   buildWristHUD();
   buildVRModMenu();
-
-  // squeeze right grip → toggle mod menu
-  const rightCtrl = renderer.xr.getController(1);
-  rightCtrl.addEventListener('squeezestart', () => {
-    if (!window.currentPlayer || !window.currentPlayer.is_admin) return;
-    _vrModVisible = !_vrModVisible;
-    if (_vrModMenu) _vrModMenu.visible = _vrModVisible;
-    if (_vrModVisible) _refreshVRMod();
-  });
 }
 
 // ---- Wrist HUD (left controller) ----
@@ -471,6 +473,29 @@ let _vrModMenu = null, _vrModCanvas = null, _vrModCtx = null, _vrModTex = null;
 let _vrModVisible = false, _vrModTab = 'players', _vrModPage = 0;
 let _vrModBtnMeshes = [];
 
+// Poll gamepad grip buttons directly — squeezestart events aren't reliable in all emulators.
+// buttons[1] is the grip/squeeze on both Quest controllers and the Immersive Web Emulator.
+let _gripWasPressed = false;
+function _pollModMenuGrip(xrFrame) {
+  if (!xrSession) return;
+  let pressed = false;
+  for (const src of xrSession.inputSources) {
+    if (src.handedness === 'right' && src.gamepad) {
+      // try both common A-button indices
+      for (const idx of [4, 3, 5]) {
+        if (src.gamepad.buttons[idx] && src.gamepad.buttons[idx].pressed) { pressed = true; break; }
+      }
+    }
+  }
+  if (pressed && !_gripWasPressed) {
+    if (!_vrModMenu || !window.currentPlayer || !window.currentPlayer.is_admin) { _gripWasPressed = pressed; return; }
+    _vrModVisible = !_vrModVisible;
+    _vrModMenu.visible = _vrModVisible;
+    if (_vrModVisible) _refreshVRMod();
+  }
+  _gripWasPressed = pressed;
+}
+
 function buildVRModMenu() {
   if (!window.currentPlayer || !window.currentPlayer.is_admin) return;
   if (_vrModMenu) return;
@@ -489,10 +514,12 @@ function buildVRModMenu() {
   _vrModMenu.add(panel);
   _vrModMenu.visible = false;
 
-  // Float above + forward of the right grip so it's easy to read
-  _vrModMenu.position.set(0, 0.22, -0.05);
-  _vrModMenu.rotation.x = -0.5;
-  if (vrGrips[1]) vrGrips[1].add(_vrModMenu);
+  // Attach above the left palm, face-up (readable when you raise your palm).
+  // Grip space: Y = thumb-up, Z = toward player (wrist). Plane default faces +Z.
+  _vrModMenu.position.set(0, 0.06, 0.0);
+  _vrModMenu.rotation.x = -Math.PI / 2; // lay flat, face up (palm side)
+  const leftGrip = vrGripByHand['left'] || vrGrips[0];
+  if (leftGrip) leftGrip.add(_vrModMenu);
 
   // Tab buttons
   _vrModAddBtn('PLAYERS', -0.10, -0.26, () => { _vrModTab = 'players'; _vrModPage = 0; _drawVRMod(); });
