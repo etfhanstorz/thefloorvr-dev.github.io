@@ -11,6 +11,7 @@ function _ibCanvas(w, h) {
 
 function _ibBg(ctx, W, H, borderCol) {
   ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = 'rgba(6,3,16,0.96)';
   ctx.beginPath();
   if (ctx.roundRect) ctx.roundRect(6, 6, W - 12, H - 12, 22); else ctx.rect(6, 6, W - 12, H - 12);
@@ -33,32 +34,6 @@ function _ibMesh(canvas) {
   return mesh;
 }
 
-// faceAxis: 'x' = board extends in Z/Y (faces ±X), 'z' = board extends in X/Y (faces ±Z)
-function _ibFrame(color, scene, x, y, z, faceAxis) {
-  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9, roughness: 0.3, metalness: 0.7 });
-  const W = INFO_BOARD.W + 0.08, H = INFO_BOARD.H + 0.08;
-  if (faceAxis === 'x') {
-    // board lies in ZY plane, frame bars extend in Z and Y
-    [[0, H/2],[0, -H/2]].forEach(([_,dy]) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, W + 0.06), mat);
-      m.position.set(x + 0.02, y + dy, z); scene.add(m);
-    });
-    [[-W/2, 0],[W/2, 0]].forEach(([dz]) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, H + 0.06, 0.05), mat);
-      m.position.set(x + 0.02, y, z + dz); scene.add(m);
-    });
-  } else {
-    // board lies in XY plane, frame bars extend in X and Y
-    [[0, H/2],[0, -H/2]].forEach(([dx, dy]) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(W + 0.06, 0.05, 0.04), mat);
-      m.position.set(x + dx, y + dy, z - 0.02); scene.add(m);
-    });
-    [[-W/2, 0],[W/2, 0]].forEach(([dx]) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, H + 0.06, 0.04), mat);
-      m.position.set(x + dx, y, z - 0.02); scene.add(m);
-    });
-  }
-}
 
 // ── Leaderboard ──────────────────────────────────────────────────────────────
 
@@ -233,8 +208,6 @@ window.buildInfoBoards = function(scene) {
   const meshes = {};
   boards.forEach(({ z, label, color, draw }) => {
     const x = -62.2, y = 2.2; // lobby back wall, just off the surface
-
-    _ibFrame(color, scene, x, y, z, 'x');
 
     const canvas = _ibCanvas(INFO_BOARD.CW, INFO_BOARD.CH);
     const ctx = canvas.getContext('2d');
